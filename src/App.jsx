@@ -15,7 +15,7 @@ const USER_ROLES = {
   "iris@safd.com": "JEFA DE BATALLÓN",
 };
 
-const RANGOS_ACADEMIA = ["Rango 0", "Aspirante", "Bombero II", "Bombero I", "Oficial"];
+const RANGOS_ACADEMIA = ["Academy", "Probationary", "Ascendido", "Suspendido",];
 
 export default function App() {
   const [supabase, setSupabase] = useState(null);
