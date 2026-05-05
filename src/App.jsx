@@ -128,18 +128,18 @@ export default function App() {
     if (!error) { setNewStudentName(''); setIsModalOpen(false); fetchAllData(); }
   };
 
-  const sendObservation = async () => {
-    if (!newObs.trim() || !supabase) return;
-    const { data, error } = await supabase.from('observations').insert([{ student_id: selectedStudent.id, instructor_name: instructorInfo.fullTag, content: newObs }]).select();
-    if (!error) { setObservations([...observations, data[0]]); setNewObs(''); }
-  };
-
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoading(true);
     const { data, error } = await supabase.auth.signInWithPassword({ email: emailInput, password: passInput });
     if (error) { alert("Acceso denegado"); setLoading(false); }
     else { setSession(data.session); fetchAllData(supabase); setLoading(false); }
+  };
+
+  const sendObservation = async () => {
+    if (!newObs.trim() || !supabase) return;
+    const { data, error } = await supabase.from('observations').insert([{ student_id: selectedStudent.id, instructor_name: instructorInfo.fullTag, content: newObs }]).select();
+    if (!error) { setObservations([...observations, data[0]]); setNewObs(''); }
   };
 
   if (loading || !supabase) return <div className="min-h-screen bg-[#09090b] flex items-center justify-center text-red-600 font-black text-2xl animate-pulse italic uppercase tracking-widest text-center px-6">Iniciando Protocolo...</div>;
@@ -193,7 +193,7 @@ export default function App() {
           <div className="inline-flex items-center gap-2 bg-red-600/10 text-red-600 px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border border-red-600/20 mb-8 italic backdrop-blur-md">{instructorInfo.fullTag}</div>
           <div className="flex justify-between items-end">
             <h1 className="text-8xl md:text-[9rem] font-black italic uppercase tracking-tighter leading-[0.75] drop-shadow-2xl">
-               {selectedStudent ? 'EXPEDIENTE' : activeTab === 'alumnos' ? 'EXPEDIENTES' : activeTab === 'progreso' ? 'RESUMEN' : 'BIBLIOTECA'}
+               {selectedStudent ? selectedStudent.name : activeTab === 'alumnos' ? 'EXPEDIENTES' : activeTab === 'progreso' ? 'RESUMEN' : 'BIBLIOTECA'}
             </h1>
             {isAdmin && !selectedStudent && activeTab === 'alumnos' && (
               <button onClick={() => setIsModalOpen(true)} className="bg-white text-black px-8 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-red-600 hover:text-white transition-all shadow-xl">+ ALTA ASPIRANTE</button>
@@ -205,7 +205,6 @@ export default function App() {
           <div className="space-y-12 pb-20 animate-in fade-in duration-500">
             <button onClick={() => setSelectedStudent(null)} className="text-zinc-600 hover:text-white text-[9px] font-black uppercase tracking-widest flex items-center gap-2 mb-12 bg-white/5 px-6 py-3 rounded-xl border border-white/5 backdrop-blur-md transition-all"><ChevronLeft className="w-4 h-4" /> VOLVER AL LISTADO</button>
 
-            {/* SECCIÓN 1: CABECERA EXPEDIENTE */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                <div className="bg-white/5 border border-white/10 rounded-[3rem] p-10 backdrop-blur-md shadow-2xl">
                   <div className="flex justify-between items-center mb-6">
@@ -220,33 +219,22 @@ export default function App() {
                </div>
                <div className="bg-white/5 border border-white/10 rounded-[3rem] p-10 backdrop-blur-md shadow-2xl">
                   <div className="flex justify-between items-center mb-6"><span className="text-zinc-600 text-[9px] font-black uppercase tracking-widest italic">Aprobación Técnica</span><span className="text-red-600 font-black italic text-xl">43%</span></div>
-                  <div className="h-1.5 w-full bg-black/40 rounded-full overflow-hidden"><div className="bg-red-600 h-full w-[43%] shadow-[0_0_15px_rgba(220,38,38,0.5)]"></div></div>
+                  <div className="h-1.5 w-full bg-black/40 rounded-full overflow-hidden"><div className="bg-red-600 h-full w-[43%] shadow-[0_0_15px_rgba(220,38,38,0.5)] transition-all"></div></div>
                </div>
             </div>
 
-            {/* SECCIÓN 2: DÍAS ACADEMIA (SOLO REALIZADO / NO REALIZADO) */}
             <div className="bg-white/5 border border-white/10 rounded-[3rem] p-10 border-t-4 border-t-green-600 backdrop-blur-md shadow-2xl">
               <div className="text-zinc-300 text-[10px] font-black uppercase tracking-widest mb-10 flex items-center gap-2"><Calendar className="w-4 h-4 text-green-600" /> Días Academia</div>
               <table className="w-full text-left border-separate border-spacing-y-2">
-                <thead><tr className="text-zinc-600 text-[9px] font-black uppercase tracking-widest italic text-center"><th className="pb-4 text-left px-4">Módulo</th><th>Estado de Sesión</th></tr></thead>
-                <tbody className="text-[10px] font-black uppercase italic text-center">
+                <thead><tr className="text-zinc-600 text-[9px] font-black uppercase tracking-widest italic"><th className="pb-4 text-left px-4">Módulo</th><th className="pb-4 text-right px-4">Estado de Sesión</th></tr></thead>
+                <tbody className="text-[10px] font-black uppercase italic">
                   {[ { key: 'asis_radio', label: 'RADIO & DISPATCH' }, { key: 'asis_auxilios', label: 'PRIMEROS AUXILIOS' }, { key: 'asis_incendios', label: 'INCENDIOS' }, { key: 'asis_excarcelacion', label: 'EXCARCELACIÓN' } ].map(mod => (
                     <tr key={mod.key} className="bg-black/20">
                       <td className="py-5 px-4 text-zinc-400 text-left">{mod.label}</td>
-                      <td className="py-5">
-                        <div className="flex justify-center gap-4">
-                          <button 
-                            onClick={() => updateStudentData(mod.key, 'realizado')} 
-                            className={`px-6 py-2 rounded-xl border transition-all ${selectedStudent[mod.key] === 'realizado' ? 'bg-green-600 border-green-400 text-white shadow-lg' : 'bg-zinc-900 border-zinc-800 text-zinc-600'}`}
-                          >
-                            REALIZADO
-                          </button>
-                          <button 
-                            onClick={() => updateStudentData(mod.key, 'no_realizado')} 
-                            className={`px-6 py-2 rounded-xl border transition-all ${selectedStudent[mod.key] === 'no_realizado' ? 'bg-red-600 border-red-400 text-white shadow-lg' : 'bg-zinc-900 border-zinc-800 text-zinc-600'}`}
-                          >
-                            NO REALIZADO
-                          </button>
+                      <td className="py-5 text-right px-4">
+                        <div className="flex justify-end gap-4">
+                          <button onClick={() => updateStudentData(mod.key, 'realizado')} className={`px-6 py-2 rounded-xl border transition-all ${selectedStudent[mod.key] === 'realizado' ? 'bg-green-600 border-green-400 text-white shadow-lg' : 'bg-zinc-900 border-zinc-800 text-zinc-600'}`}>REALIZADO</button>
+                          <button onClick={() => updateStudentData(mod.key, 'no_realizado')} className={`px-6 py-2 rounded-xl border transition-all ${selectedStudent[mod.key] === 'no_realizado' ? 'bg-red-600 border-red-400 text-white shadow-lg' : 'bg-zinc-900 border-zinc-800 text-zinc-600'}`}>NO REALIZADO</button>
                         </div>
                       </td>
                     </tr>
@@ -255,28 +243,24 @@ export default function App() {
               </table>
             </div>
 
-            {/* SECCIÓN 3: HABILIDADES DE CAMPO */}
-            <div>
-              <div className="flex items-center gap-6 mb-10"><h2 className="text-4xl font-black italic uppercase tracking-tighter">Habilidades de Campo</h2><div className="h-px flex-1 bg-white/10"></div></div>
-              <div className="space-y-4">
-                {[ { key: 'actitud', label: 'ACTITUD' }, { key: 'mando', label: 'MANDO' }, { key: 'interna', label: 'BUEN USO DE INTERNA' }, { key: 'radio', label: 'COMUNICACIÓN POR RADIO' }, { key: 'primeros_aux', label: 'PRIMEROS AUXILIOS' }, { key: 'excarcelacion_hab', label: 'EXCARCELACIONES' }, { key: 'incendios_hab', label: 'INCENDIOS' }
-                ].map((skill) => (
-                  <div key={skill.key} className="bg-white/5 border border-white/10 p-8 rounded-[2rem] flex flex-col md:flex-row justify-between md:items-center gap-6 backdrop-blur-md shadow-xl hover:border-red-600/30 transition-all">
-                    <div>
-                      <div className="font-black italic text-xl uppercase mb-2 tracking-tighter">{skill.label}</div>
-                      <div className="text-[8px] font-black text-zinc-600 uppercase tracking-widest italic">{selectedStudent[skill.key] && selectedStudent[skill.key] !== 'no' ? `FIRMADO POR: ${selectedStudent[`${skill.key}_validador`]} — 5/5/2026` : 'Pte. Validación'}</div>
-                    </div>
-                    <div className="flex gap-2">
-                       {['no', 'cursando', 'aprendido'].map(status => (
-                         <button key={status} onClick={() => updateStudentData(skill.key, status)} className={`px-6 py-2 rounded-xl text-[9px] font-black transition-all ${selectedStudent[skill.key] === status ? (status === 'aprendido' ? 'bg-green-600 text-white shadow-lg shadow-green-600/20' : status === 'cursando' ? 'bg-yellow-600 text-white shadow-lg' : 'bg-zinc-700 text-white') : 'bg-black/20 text-zinc-600 hover:bg-black/40'}`}>{status.toUpperCase()}</button>
-                       ))}
-                    </div>
+            <div className="space-y-4">
+              <h2 className="text-4xl font-black italic uppercase tracking-tighter mb-10 text-white/90">Habilidades de Campo</h2>
+              {[ { key: 'actitud', label: 'ACTITUD' }, { key: 'mando', label: 'MANDO' }, { key: 'interna', label: 'BUEN USO DE INTERNA' }, { key: 'radio', label: 'COMUNICACIÓN POR RADIO' }, { key: 'primeros_aux', label: 'PRIMEROS AUXILIOS' }, { key: 'excarcelacion_hab', label: 'EXCARCELACIONES' }, { key: 'incendios_hab', label: 'INCENDIOS' }
+              ].map((skill) => (
+                <div key={skill.key} className="bg-white/5 border border-white/10 p-8 rounded-[2rem] flex flex-col md:flex-row justify-between md:items-center gap-6 backdrop-blur-md shadow-xl hover:border-red-600/30 transition-all">
+                  <div>
+                    <div className="font-black italic text-xl uppercase mb-2 tracking-tighter">{skill.label}</div>
+                    <div className="text-[8px] font-black text-zinc-600 uppercase tracking-widest italic">{selectedStudent[skill.key] && selectedStudent[skill.key] !== 'no' ? `FIRMADO POR: ${selectedStudent[`${skill.key}_validador`]} — 5/5/2026` : 'Pte. Validación'}</div>
                   </div>
-                ))}
-              </div>
+                  <div className="flex gap-2">
+                    {['no', 'cursando', 'aprendido'].map(status => (
+                      <button key={status} onClick={() => updateStudentData(skill.key, status)} className={`px-6 py-2 rounded-xl text-[9px] font-black transition-all ${selectedStudent[skill.key] === status ? (status === 'aprendido' ? 'bg-green-600 text-white shadow-lg shadow-green-600/20' : status === 'cursando' ? 'bg-yellow-600 text-white shadow-lg' : 'bg-zinc-700 text-white') : 'bg-black/20 text-zinc-600 hover:bg-black/40'}`}>{status.toUpperCase()}</button>
+                    ))}
+                  </div>
+                </div>
+              ))}
             </div>
 
-            {/* SECCIÓN 4: VOTACIÓN Y CHAT */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                <div className="bg-white/5 border border-white/10 rounded-[3rem] p-10 border-t-4 border-t-blue-600 h-fit backdrop-blur-md shadow-2xl">
                   <div className="text-zinc-300 text-[10px] font-black uppercase tracking-widest mb-10 italic">Votación Instructores</div>
@@ -309,7 +293,7 @@ export default function App() {
             </div>
           </div>
         ) : (
-          /* --- LISTADOS SEGÚN PESTAÑA --- */
+          /* --- RENDERIZADO DE PESTAÑAS (INCLUYENDO ESTADÍSTICAS) --- */
           <div className="animate-in fade-in duration-700">
             {activeTab === 'alumnos' && (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -323,11 +307,31 @@ export default function App() {
                 ))}
               </div>
             )}
-            {/* Resto de pestañas... */}
+            
+            {activeTab === 'progreso' && (
+              <div className="space-y-12">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="bg-white/5 border border-white/10 rounded-[2.5rem] p-10 backdrop-blur-md shadow-xl"><TrendingUp className="text-zinc-600 mb-6 w-8 h-8" /><div className="text-6xl font-black italic mb-2 tracking-tighter">{students.length}</div><div className="text-[10px] font-black text-zinc-600 uppercase tracking-widest italic">Aspirantes Activos</div></div>
+                  <div className="bg-white/5 border border-green-900/20 rounded-[2.5rem] p-10 backdrop-blur-md shadow-xl"><CheckCircle2 className="text-green-600 mb-6 w-8 h-8" /><div className="text-6xl font-black italic mb-2 tracking-tighter text-green-500">{students.filter(s => s.voto_instructor === 'apto').length}</div><div className="text-[10px] font-black text-zinc-600 uppercase tracking-widest italic">Graduados RTD</div></div>
+                  <div className="bg-white/5 border border-yellow-900/20 rounded-[2.5rem] p-10 backdrop-blur-md shadow-xl"><AlertCircle className="text-yellow-600 mb-6 w-8 h-8" /><div className="text-6xl font-black italic mb-2 tracking-tighter text-yellow-500">{students.filter(s => s.voto_instructor === null).length}</div><div className="text-[10px] font-black text-zinc-600 uppercase tracking-widest italic">En Evaluación</div></div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'recursos' && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                {resources.map(r => (
+                  <div key={r.id} className="group bg-white/5 border border-white/10 p-10 rounded-[3rem] hover:border-blue-600/50 transition-all relative shadow-xl overflow-hidden shadow-black/20 backdrop-blur-sm">
+                    <FileText className="w-12 h-12 text-blue-600 mb-10" />
+                    <h3 className="text-3xl font-black italic uppercase tracking-tighter mb-8 leading-tight">{r.title}</h3>
+                    <a href={r.url} target="_blank" rel="noreferrer" className="inline-flex h-14 items-center px-10 bg-black/40 border border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest text-zinc-500 hover:text-white hover:bg-blue-600 transition-all">ABRIR DOCUMENTO</a>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
-        {/* MODAL NUEVO ASPIRANTE */}
         {isModalOpen && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/90 backdrop-blur-xl">
             <div className="bg-[#0a0a0a] border border-white/10 w-full max-w-xl rounded-[3.5rem] p-16 shadow-2xl text-white">
