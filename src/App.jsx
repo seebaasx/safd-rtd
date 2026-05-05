@@ -3,13 +3,13 @@ import {
   Users, LogOut, Flame, ShieldCheck, User, BarChart3, BookOpen, 
   FileText, ExternalLink, Activity, X, ChevronLeft, MessageSquare, 
   Send, Clock, Calendar, ThumbsUp, ThumbsDown, Edit2, Check, ChevronRight,
-  TrendingUp, CheckCircle2, AlertCircle, Plus, Trash2
+  TrendingUp, CheckCircle2, AlertCircle, Plus, Trash2, INFO
 } from 'lucide-react';
 
 const supabaseUrl = 'https://bwisxczbkjlxyunpqqld.supabase.co'; 
 const supabaseKey = 'sb_publishable_MEosBztTd-5Ot5Rb-jhaHg_BEeiWZ19';
 
-// --- CONFIGURACIÓN DE ACCESO Y RANGOS (AQUÍ AÑADES MÁS ADMINS) ---
+// --- CONFIGURACIÓN DE ACCESO Y RANGOS ---
 const ADMIN_EMAILS = ["iris@safd.com", "blakecassidy@safd.com"]; 
 const USER_ROLES = {
   "iris@safd.com": "JEFA DE BATALLÓN",
@@ -33,7 +33,7 @@ export default function App() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newStudentName, setNewStudentName] = useState('');
   const [isResModalOpen, setIsResModalOpen] = useState(false);
-  const [newRes, setNewRes] = useState({ title: '', url: '' });
+  const [newRes, setNewRes] = useState({ title: '', url: '', description: '' });
 
   const [currentSlide, setCurrentSlide] = useState(0);
   const [emailInput, setEmailInput] = useState('');
@@ -74,10 +74,9 @@ export default function App() {
     const email = session.user.email.toLowerCase();
     const name = email.split('@')[0].toUpperCase();
     const rango = USER_ROLES[email] || "INSTRUCTOR";
-    return { email, name, rango, fullTag: `[${rango}] ${name}` };
+    return { name, rango, fullTag: `[${rango}] ${name}` };
   }, [session]);
 
-  // PERMISOS ADMIN MULTI-USUARIO
   const isAdmin = useMemo(() => {
     return session?.user?.email && ADMIN_EMAILS.some(e => e.toLowerCase() === session.user.email.toLowerCase());
   }, [session]);
@@ -85,7 +84,7 @@ export default function App() {
   async function fetchAllData(client = supabase) {
     if (!client) return;
     const { data: stds } = await client.from('students').select('*').order('name');
-    const { data: ress } = await client.from('resources').select('*').order('created_at');
+    const { data: ress } = await client.from('resources').select('*').order('created_at', { ascending: false });
     setStudents(stds || []);
     setResources(ress || []);
   }
@@ -102,6 +101,13 @@ export default function App() {
     e.stopPropagation();
     if (!window.confirm("¿ELIMINAR ALUMNO PERMANENTEMENTE?")) return;
     await supabase.from('students').delete().eq('id', id);
+    fetchAllData();
+  };
+
+  const deleteResource = async (id, e) => {
+    e.stopPropagation();
+    if (!window.confirm("¿ELIMINAR ESTE RECURSO?")) return;
+    await supabase.from('resources').delete().eq('id', id);
     fetchAllData();
   };
 
@@ -134,8 +140,11 @@ export default function App() {
 
   const handleCreateResource = async (e) => {
     e.preventDefault();
+    if (!newRes.title || !newRes.url) return;
     await supabase.from('resources').insert([newRes]);
-    setNewRes({ title: '', url: '' }); setIsResModalOpen(false); fetchAllData();
+    setNewRes({ title: '', url: '', description: '' }); 
+    setIsResModalOpen(false); 
+    fetchAllData();
   };
 
   const sendObservation = async () => {
@@ -152,7 +161,7 @@ export default function App() {
     else { setSession(data.session); fetchAllData(supabase); setLoading(false); }
   };
 
-  if (loading || !supabase) return <div className="min-h-screen bg-[#050505] flex items-center justify-center text-red-600 font-black text-2xl animate-pulse italic uppercase tracking-widest">Sincronizando Sistema...</div>;
+  if (loading || !supabase) return <div className="min-h-screen bg-[#050505] flex items-center justify-center text-red-600 font-black text-2xl animate-pulse italic uppercase tracking-widest transition-all">Sincronizando Sistema...</div>;
 
   if (!session) {
     return (
@@ -212,10 +221,10 @@ export default function App() {
         </header>
 
         {selectedStudent ? (
+          /* --- VISTA EXPEDIENTE ALUMNO (INALTERADA) --- */
           <div className="space-y-12 pb-20 animate-in fade-in duration-500">
-            <button onClick={() => setSelectedStudent(null)} className="text-zinc-600 hover:text-white text-[9px] font-black uppercase tracking-widest flex items-center gap-2 mb-12 bg-white/5 px-6 py-3 rounded-xl border border-white/5 backdrop-blur-md transition-all shadow-lg"><ChevronLeft className="w-4 h-4" /> VOLVER AL LISTADO</button>
+            <button onClick={() => setSelectedStudent(null)} className="text-zinc-600 hover:text-white text-[9px] font-black uppercase tracking-widest flex items-center gap-2 mb-12 bg-white/5 px-6 py-3 rounded-xl border border-white/5 backdrop-blur-md shadow-lg"><ChevronLeft className="w-4 h-4" /> VOLVER AL LISTADO</button>
 
-            {/* SECCIÓN 1: CABECERA EXPEDIENTE */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                <div className="bg-white/5 border border-white/10 rounded-[3rem] p-10 backdrop-blur-md shadow-2xl">
                   <div className="flex justify-between items-center mb-6"><div className="text-zinc-600 text-[9px] font-black uppercase tracking-widest italic">Horarios de Formación</div><button onClick={() => isEditingHorario ? (updateStudentData('horario', tempHorario), setIsEditingHorario(false)) : setIsEditingHorario(true)}><Edit2 className="w-4 h-4 text-zinc-600" /></button></div>
@@ -226,16 +235,15 @@ export default function App() {
                   <select className="bg-black/40 border border-white/10 text-white p-3 rounded-xl w-full font-black italic uppercase outline-none focus:border-red-600 cursor-pointer" value={selectedStudent.rango || "Academy"} onChange={(e) => updateStudentData('rango', e.target.value)}>{RANGOS_ACADEMIA.map(r => <option key={r} value={r} className="bg-zinc-900">{r.toUpperCase()}</option>)}</select>
                </div>
                <div className="bg-white/5 border border-white/10 rounded-[3rem] p-10 backdrop-blur-md">
-                  <div className="flex justify-between items-center mb-6"><span className="text-zinc-600 text-[9px] font-black uppercase tracking-widest italic">Rendimiento Académico</span><span className="text-red-600 font-black italic text-xl">43%</span></div>
+                  <div className="flex justify-between items-center mb-6"><span className="text-zinc-600 text-[9px] font-black uppercase tracking-widest italic">Aprobación Técnica</span><span className="text-red-600 font-black italic text-xl">43%</span></div>
                   <div className="h-1.5 w-full bg-black/40 rounded-full overflow-hidden"><div className="bg-red-600 h-full w-[43%] shadow-[0_0_15px_rgba(220,38,38,0.5)] transition-all"></div></div>
                </div>
             </div>
 
-            {/* SECCIÓN 2: DÍAS ACADEMIA */}
             <div className="bg-white/5 border border-white/10 rounded-[3rem] p-10 border-t-4 border-t-green-600 backdrop-blur-md shadow-2xl">
               <div className="text-zinc-300 text-[10px] font-black uppercase tracking-widest mb-10 flex items-center gap-2"><Calendar className="w-4 h-4 text-green-600" /> Días Academia</div>
               <table className="w-full text-left border-separate border-spacing-y-2">
-                <thead><tr className="text-zinc-600 text-[9px] font-black uppercase tracking-widest italic"><th className="pb-4 text-left px-4">Módulo</th><th className="pb-4 text-right px-4">Estado de Sesión</th></tr></thead>
+                <thead><tr className="text-zinc-600 text-[9px] font-black uppercase tracking-widest italic text-center"><th className="pb-4 text-left px-4">Módulo</th><th className="pb-4 text-right px-4">Estado de Sesión</th></tr></thead>
                 <tbody className="text-[10px] font-black uppercase italic">
                   {[ { key: 'asis_radio', label: 'RADIO & DISPATCH' }, { key: 'asis_auxilios', label: 'PRIMEROS AUXILIOS' }, { key: 'asis_incendios', label: 'INCENDIOS' }, { key: 'asis_excarcelacion', label: 'EXCARCELACIÓN' } ].map(mod => (
                     <tr key={mod.key} className="bg-black/20"><td className="py-5 px-4 text-zinc-400 text-left">{mod.label}</td>
@@ -249,7 +257,6 @@ export default function App() {
               </table>
             </div>
 
-            {/* SECCIÓN 3: HABILIDADES */}
             <div className="space-y-4">
               <h2 className="text-4xl font-black italic uppercase tracking-tighter mb-10 text-white/90">Habilidades de Campo</h2>
               {[ { key: 'actitud', label: 'ACTITUD' }, { key: 'mando', label: 'MANDO' }, { key: 'interna', label: 'BUEN USO DE INTERNA' }, { key: 'radio', label: 'COMUNICACIÓN POR RADIO' }, { key: 'primeros_aux', label: 'PRIMEROS AUXILIOS' }, { key: 'excarcelacion_hab', label: 'EXCARCELACIONES' }, { key: 'incendios_hab', label: 'INCENDIOS' }
@@ -261,7 +268,6 @@ export default function App() {
               ))}
             </div>
 
-            {/* SECCIÓN 4: CHAT Y VOTO */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                <div className="bg-white/5 border border-white/10 rounded-[3rem] p-10 border-t-4 border-t-blue-600 backdrop-blur-md h-fit">
                   <div className="text-zinc-300 text-[10px] font-black uppercase tracking-widest mb-10 italic">Estado Final</div>
@@ -272,7 +278,7 @@ export default function App() {
                </div>
                <div className="bg-white/5 border border-white/10 rounded-[3rem] p-10 border-t-4 border-t-red-600 backdrop-blur-md shadow-2xl">
                   <div className="text-zinc-300 text-[10px] font-black uppercase tracking-widest mb-10 italic flex items-center gap-2"><MessageSquare className="w-4 h-4 text-red-600" /> Registro Seguimiento</div>
-                  <div className="space-y-6 mb-12 max-h-[400px] overflow-y-auto pr-4">
+                  <div className="space-y-6 mb-12 max-h-[400px] overflow-y-auto pr-4 custom-scrollbar">
                      {observations.map(obs => (
                        <div key={obs.id} className="bg-black/40 border border-white/5 rounded-3xl p-8 shadow-inner group relative">
                           {isAdmin && <button onClick={() => deleteObservation(obs.id)} className="absolute top-6 right-6 text-zinc-700 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-all"><X className="w-4 h-4" /></button>}
@@ -281,23 +287,23 @@ export default function App() {
                        </div>
                      ))}
                   </div>
-                  <div className="bg-black/40 border border-white/10 rounded-[2.5rem] p-4 flex items-center gap-4 focus-within:border-red-600 transition-all shadow-inner">
-                     <textarea value={newObs} onChange={e => setNewObs(e.target.value)} placeholder="Redactar..." className="bg-transparent flex-1 outline-none p-4 text-zinc-300 resize-none h-24 text-sm font-medium italic" />
+                  <div className="bg-black/40 border border-white/10 rounded-[2.5rem] p-4 flex items-center gap-4 focus-within:border-red-600 transition-all shadow-inner shadow-black">
+                     <textarea value={newObs} onChange={e => setNewObs(e.target.value)} placeholder="Redactar seguimiento..." className="bg-transparent flex-1 outline-none p-4 text-zinc-300 resize-none h-24 text-sm font-medium italic" />
                      <button onClick={sendObservation} className="bg-red-600 p-5 rounded-full shadow-lg shadow-red-600/40 hover:scale-110 active:scale-95 transition-all text-white"><Send className="w-6 h-6" /></button>
                   </div>
                </div>
             </div>
           </div>
         ) : (
-          /* --- RENDERIZADO DE PESTAÑAS (INCLUYENDO ESTADÍSTICAS REPARADAS) --- */
+          /* --- RENDERIZADO DE PESTAÑAS (ALUMNOS/PROGRESO/BIBLIOTECA) --- */
           <div className="animate-in fade-in duration-700">
             {activeTab === 'alumnos' && (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                 {students.map(s => (
                   <div key={s.id} onClick={() => setSelectedStudent(s)} className="group bg-white/5 border border-white/10 p-12 rounded-[3.5rem] hover:border-red-600 transition-all cursor-pointer relative shadow-2xl overflow-hidden backdrop-blur-sm">
                     {isAdmin && <button onClick={(e) => deleteStudent(s.id, e)} className="absolute top-8 right-8 text-zinc-700 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-all z-20"><Trash2 className="w-5 h-5" /></button>}
-                    <div className="w-14 h-14 bg-white/5 rounded-2xl flex items-center justify-center group-hover:bg-red-600 transition-all mb-10 shadow-inner shadow-black/50"><User className="text-zinc-600 group-hover:text-white" /></div>
-                    <h3 className="text-3xl font-black italic uppercase tracking-tighter mb-4">{s.name}</h3>
+                    <div className="w-16 h-16 bg-white/5 rounded-2xl flex items-center justify-center group-hover:bg-red-600 transition-all mb-10 shadow-inner shadow-black/50"><User className="text-zinc-600 group-hover:text-white" /></div>
+                    <h3 className="text-3xl font-black italic uppercase tracking-tighter mb-4 leading-none">{s.name}</h3>
                     <div className="flex justify-between items-center"><p className="text-[9px] font-black text-zinc-700 uppercase tracking-widest group-hover:text-red-500 transition-all">{s.rango || 'Academy'}</p><ChevronRight className="w-4 h-4 text-zinc-800 group-hover:text-red-600 transition-all" /></div>
                   </div>
                 ))}
@@ -317,10 +323,14 @@ export default function App() {
             {activeTab === 'recursos' && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 {resources.map(r => (
-                  <div key={r.id} className="group bg-white/5 border border-white/10 p-10 rounded-[3rem] hover:border-blue-600/50 transition-all relative shadow-xl overflow-hidden shadow-black/20 backdrop-blur-sm">
-                    <FileText className="w-12 h-12 text-blue-600 mb-10" />
-                    <h3 className="text-3xl font-black italic uppercase tracking-tighter mb-8 leading-tight">{r.title}</h3>
-                    <a href={r.url} target="_blank" rel="noreferrer" className="inline-flex h-14 items-center px-10 bg-black/40 border border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest text-zinc-500 hover:text-white hover:bg-blue-600 transition-all">ABRIR DOCUMENTO</a>
+                  <div key={r.id} className="group bg-white/5 border border-white/10 p-10 rounded-[3rem] hover:border-blue-600/50 transition-all relative shadow-xl overflow-hidden shadow-black/20 backdrop-blur-sm flex flex-col h-full">
+                    {isAdmin && <button onClick={(e) => deleteResource(r.id, e)} className="absolute top-8 right-8 text-zinc-700 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-all z-20"><Trash2 className="w-5 h-5" /></button>}
+                    <div className="flex items-start justify-between mb-8">
+                      <div className="w-14 h-14 bg-blue-600/20 rounded-2xl flex items-center justify-center"><FileText className="text-blue-500 w-7 h-7" /></div>
+                    </div>
+                    <h3 className="text-3xl font-black italic uppercase tracking-tighter mb-4 leading-tight">{r.title}</h3>
+                    <p className="text-zinc-500 italic text-sm mb-10 line-clamp-3 flex-1">{r.description || "Sin descripción disponible para este recurso."}</p>
+                    <a href={r.url} target="_blank" rel="noreferrer" className="inline-flex h-14 items-center justify-center px-10 bg-black/40 border border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest text-zinc-500 hover:text-white hover:bg-blue-600 transition-all shadow-xl">ABRIR DOCUMENTO</a>
                   </div>
                 ))}
               </div>
@@ -328,7 +338,7 @@ export default function App() {
           </div>
         )}
 
-        {/* MODAL ALTA ASPIRANTE */}
+        {/* MODALES (ALUMNOS Y RECURSOS) */}
         {isModalOpen && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/90 backdrop-blur-xl">
             <div className="bg-[#0a0a0a] border border-white/10 w-full max-w-xl rounded-[3.5rem] p-16 shadow-2xl text-white">
@@ -341,15 +351,15 @@ export default function App() {
           </div>
         )}
 
-        {/* MODAL NUEVO RECURSO */}
         {isResModalOpen && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/90 backdrop-blur-xl">
             <div className="bg-[#0a0a0a] border border-white/10 w-full max-w-xl rounded-[3.5rem] p-16 shadow-2xl text-white">
               <div className="flex justify-between items-center mb-12"><h2 className="text-4xl font-black italic uppercase tracking-tighter">Nuevo Recurso</h2><button onClick={() => setIsResModalOpen(false)} className="text-zinc-700 hover:text-white"><X className="w-8 h-8" /></button></div>
               <form onSubmit={handleCreateResource} className="space-y-6">
-                <input type="text" className="w-full bg-black/40 border border-white/10 rounded-2xl py-6 px-10 text-white font-black italic uppercase outline-none focus:border-blue-600" value={newRes.title} onChange={e => setNewRes({...newRes, title: e.target.value})} placeholder="TÍTULO" required />
-                <input type="url" className="w-full bg-black/40 border border-white/10 rounded-2xl py-6 px-10 text-white font-black italic outline-none focus:border-blue-600" value={newRes.url} onChange={e => setNewRes({...newRes, url: e.target.value})} placeholder="URL" required />
-                <button type="submit" className="w-full bg-blue-600 py-7 rounded-2xl font-black uppercase text-[11px] text-white">PUBLICAR</button>
+                <input type="text" className="w-full bg-black/40 border border-white/10 rounded-2xl py-5 px-8 text-white font-black italic uppercase outline-none focus:border-blue-600" value={newRes.title} onChange={e => setNewRes({...newRes, title: e.target.value})} placeholder="TÍTULO" required />
+                <textarea className="w-full bg-black/40 border border-white/10 rounded-2xl py-5 px-8 text-white font-black italic outline-none focus:border-blue-600 h-32 resize-none" value={newRes.description} onChange={e => setNewRes({...newRes, description: e.target.value})} placeholder="BREVE RESUMEN DINÁMICO..." required />
+                <input type="url" className="w-full bg-black/40 border border-white/10 rounded-2xl py-5 px-8 text-white font-black italic outline-none focus:border-blue-600" value={newRes.url} onChange={e => setNewRes({...newRes, url: e.target.value})} placeholder="URL (DRIVE/DOCS)" required />
+                <button type="submit" className="w-full bg-blue-600 py-7 rounded-2xl font-black uppercase text-[11px] text-white transition-all shadow-lg shadow-blue-600/20">PUBLICAR EN BIBLIOTECA</button>
               </form>
             </div>
           </div>
