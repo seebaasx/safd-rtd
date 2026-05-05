@@ -1,4 +1,6 @@
-import "tailwindcss";
+import './index.css'; // Asegúrate de que el nombre coincida con tu archivo
+import React, { useState, useEffect, useMemo } from 'react';
+// ...
 import React, { useState, useEffect, useMemo } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { 
