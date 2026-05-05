@@ -3,7 +3,7 @@ import {
   Users, LogOut, Flame, ShieldCheck, User, BarChart3, BookOpen, 
   FileText, ExternalLink, Activity, X, ChevronLeft, MessageSquare, 
   Send, Clock, Calendar, ThumbsUp, ThumbsDown, Edit2, Check, ChevronRight,
-  TrendingUp, CheckCircle2, AlertCircle, Plus
+  TrendingUp, CheckCircle2, AlertCircle, Plus, Trash2
 } from 'lucide-react';
 
 const supabaseUrl = 'https://bwisxczbkjlxyunpqqld.supabase.co'; 
@@ -98,6 +98,20 @@ export default function App() {
     }
   }, [selectedStudent, supabase]);
 
+  // FUNCIONES DE BORRADO
+  const deleteStudent = async (id, e) => {
+    e.stopPropagation();
+    if (!window.confirm("¿CONFIRMAR ELIMINACIÓN PERMANENTE DEL ALUMNO Y SU EXPEDIENTE?")) return;
+    const { error } = await supabase.from('students').delete().eq('id', id);
+    if (!error) fetchAllData();
+  };
+
+  const deleteObservation = async (id) => {
+    if (!window.confirm("¿BORRAR ESTE COMENTARIO DEL REGISTRO?")) return;
+    const { error } = await supabase.from('observations').delete().eq('id', id);
+    if (!error) setObservations(observations.filter(o => o.id !== id));
+  };
+
   const updateStudentData = async (column, value) => {
     if (!supabase || !selectedStudent) return;
     let finalValue = (selectedStudent[column] === value) ? null : value;
@@ -114,7 +128,7 @@ export default function App() {
   const handleCreateStudent = async (e) => {
     e.preventDefault();
     if (!newStudentName.trim() || !supabase) return;
-    const { error } = await supabase.from('students').insert([{ name: newStudentName, rango: 'Rango 0', horario: 'Mañana / Tarde' }]);
+    const { error } = await supabase.from('students').insert([{ name: newStudentName, rango: 'Academy', horario: 'Mañana / Tarde' }]);
     if (!error) { setNewStudentName(''); setIsModalOpen(false); fetchAllData(); }
   };
 
@@ -141,7 +155,6 @@ export default function App() {
 
   if (loading || !supabase) return <div className="min-h-screen bg-[#09090b] flex items-center justify-center text-red-600 font-black text-2xl animate-pulse italic uppercase tracking-widest">Iniciando Protocolo...</div>;
 
-  // --- RENDER LANDING / LOGIN CON CARRUSEL ---
   if (!session) {
     return (
       <div className="min-h-screen bg-zinc-950 flex flex-col font-sans overflow-hidden text-white relative">
@@ -169,7 +182,6 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#050505] text-white flex flex-col md:flex-row font-sans relative">
-      {/* FONDO TÁCTICO CON GRADIENTE Y TEXTURA */}
       <div className="fixed inset-0 pointer-events-none z-0">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_30%,_rgba(220,38,38,0.08)_0%,_transparent_50%)]" />
         <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10" />
@@ -177,12 +189,8 @@ export default function App() {
 
       <aside className="w-full md:w-24 bg-black/40 border-r border-white/10 flex flex-col items-center py-10 h-screen sticky top-0 z-50 backdrop-blur-xl">
         <div className="mb-16">
-  <img 
-    src="https://r2.fivemanage.com/rlMpa4HCjCLM3vQVrxiNo/RTD.png" 
-    alt="Logo" 
-    className="w-14 h-14 object-contain drop-shadow-[0_0_8px_rgba(220,38,38,0.5)]" 
-  />
-</div>
+          <img src="https://r2.fivemanage.com/rlMpa4HCjCLM3vQVrxiNo/RTD.png" alt="Logo" className="w-14 h-14 object-contain drop-shadow-[0_0_8px_rgba(220,38,38,0.5)]" />
+        </div>
         <nav className="flex md:flex-col gap-8">
           <button disabled={!!selectedStudent} onClick={() => { setActiveTab('alumnos'); setSelectedStudent(null); }} className={`p-4 rounded-2xl transition-all ${selectedStudent ? 'opacity-20 cursor-not-allowed' : 'hover:bg-white/5'} ${activeTab === 'alumnos' ? 'bg-red-600 text-white shadow-xl shadow-red-600/10' : 'text-zinc-600 hover:text-white'}`}><Users className="w-6 h-6" /></button>
           <button disabled={!!selectedStudent} onClick={() => setActiveTab('progreso')} className={`p-4 rounded-2xl transition-all ${selectedStudent ? 'opacity-20 cursor-not-allowed' : 'hover:bg-white/5'} ${activeTab === 'progreso' ? 'bg-red-600 text-white shadow-xl shadow-red-600/10' : 'text-zinc-600 hover:text-white'}`}><BarChart3 className="w-6 h-6" /></button>
@@ -193,9 +201,7 @@ export default function App() {
 
       <main className="flex-1 p-6 md:p-16 overflow-y-auto relative z-10">
         <header className="mb-16">
-          <div className="inline-flex items-center gap-2 bg-red-600/10 text-red-600 px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border border-red-600/20 mb-8 italic backdrop-blur-md">
-            {instructorInfo.fullTag}
-          </div>
+          <div className="inline-flex items-center gap-2 bg-red-600/10 text-red-600 px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border border-red-600/20 mb-8 italic backdrop-blur-md">{instructorInfo.fullTag}</div>
           <div className="flex justify-between items-end">
             <h1 className="text-8xl md:text-[9rem] font-black italic uppercase tracking-tighter leading-[0.75] drop-shadow-2xl">
                {selectedStudent ? 'EXPEDIENTE' : activeTab === 'alumnos' ? 'EXPEDIENTES' : activeTab === 'progreso' ? 'RESUMEN' : 'BIBLIOTECA'}
@@ -224,7 +230,7 @@ export default function App() {
                </div>
                <div className="bg-white/5 border border-white/10 rounded-[3rem] p-10 backdrop-blur-md shadow-2xl">
                   <div className="text-zinc-600 text-[9px] font-black uppercase tracking-widest mb-6">Rango en Academia</div>
-                  <select className="bg-black/40 border border-white/10 text-white p-3 rounded-xl w-full font-black italic uppercase outline-none focus:border-red-600 cursor-pointer" value={selectedStudent.rango || "Rango 0"} onChange={(e) => updateStudentData('rango', e.target.value)}>{RANGOS_ACADEMIA.map(r => <option key={r} value={r} className="bg-zinc-900">{r.toUpperCase()}</option>)}</select>
+                  <select className="bg-black/40 border border-white/10 text-white p-3 rounded-xl w-full font-black italic uppercase outline-none focus:border-red-600 cursor-pointer" value={selectedStudent.rango || "Academy"} onChange={(e) => updateStudentData('rango', e.target.value)}>{RANGOS_ACADEMIA.map(r => <option key={r} value={r} className="bg-zinc-900">{r.toUpperCase()}</option>)}</select>
                </div>
                <div className="bg-white/5 border border-white/10 rounded-[3rem] p-10 backdrop-blur-md shadow-2xl">
                   <div className="flex justify-between items-center mb-6"><span className="text-zinc-600 text-[9px] font-black uppercase tracking-widest italic">Aprobación Técnica</span><span className="text-red-600 font-black italic text-xl">43%</span></div>
@@ -285,7 +291,10 @@ export default function App() {
                   <div className="text-zinc-300 text-[10px] font-black uppercase tracking-widest mb-10 italic flex items-center gap-2"><MessageSquare className="w-4 h-4 text-red-600" /> Registro de Seguimiento</div>
                   <div className="space-y-6 mb-12 max-h-[400px] overflow-y-auto pr-4 custom-scrollbar">
                      {observations.map(obs => (
-                       <div key={obs.id} className="bg-black/40 border border-white/5 rounded-3xl p-8 shadow-inner group hover:border-red-600/20 transition-all">
+                       <div key={obs.id} className="bg-black/40 border border-white/5 rounded-3xl p-8 shadow-inner group relative hover:border-red-600/20 transition-all">
+                          {isAdmin && (
+                            <button onClick={() => deleteObservation(obs.id)} className="absolute top-6 right-6 text-zinc-700 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-all"><X className="w-4 h-4" /></button>
+                          )}
                           <div className="flex justify-between items-center mb-4 border-b border-white/5 pb-4">
                              <div className="flex items-center gap-3 italic"><div className="w-1.5 h-1.5 bg-red-600 rounded-full animate-pulse shadow-[0_0_8px_rgba(220,38,38,0.8)]"></div><span className="text-[10px] font-black text-white">{obs.instructor_name}</span></div>
                              <span className="text-[8px] text-zinc-700 font-black uppercase tracking-widest">5/5/2026</span>
@@ -308,9 +317,12 @@ export default function App() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                 {students.map(s => (
                   <div key={s.id} onClick={() => setSelectedStudent(s)} className="group bg-white/5 border border-white/10 p-12 rounded-[3.5rem] hover:border-red-600 transition-all cursor-pointer relative shadow-2xl overflow-hidden backdrop-blur-sm">
+                    {isAdmin && (
+                      <button onClick={(e) => deleteStudent(s.id, e)} className="absolute top-8 right-8 text-zinc-700 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-all z-20"><Trash2 className="w-5 h-5" /></button>
+                    )}
                     <div className="w-14 h-14 bg-white/5 rounded-2xl flex items-center justify-center group-hover:bg-red-600 transition-all mb-10 shadow-inner shadow-black/50"><User className="text-zinc-600 group-hover:text-white" /></div>
                     <h3 className="text-3xl font-black italic uppercase tracking-tighter mb-4">{s.name}</h3>
-                    <div className="flex justify-between items-center"><p className="text-[9px] font-black text-zinc-700 uppercase tracking-widest group-hover:text-red-500 transition-all">{s.rango || 'Rango 0'}</p><ChevronRight className="w-4 h-4 text-zinc-800 group-hover:text-red-600 transition-all" /></div>
+                    <div className="flex justify-between items-center"><p className="text-[9px] font-black text-zinc-700 uppercase tracking-widest group-hover:text-red-500 transition-all">{s.rango || 'Academy'}</p><ChevronRight className="w-4 h-4 text-zinc-800 group-hover:text-red-600 transition-all" /></div>
                   </div>
                 ))}
               </div>
@@ -342,12 +354,12 @@ export default function App() {
 
         {/* MODAL NUEVO ASPIRANTE */}
         {isModalOpen && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/90 backdrop-blur-xl">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/90 backdrop-blur-xl text-white">
             <div className="bg-[#0a0a0a] border border-white/10 w-full max-w-xl rounded-[3.5rem] p-16 shadow-2xl">
-              <div className="flex justify-between items-center mb-12 text-white"><h2 className="text-4xl font-black italic uppercase tracking-tighter">Alta Aspirante</h2><button onClick={() => setIsModalOpen(false)} className="text-zinc-700 hover:text-white"><X className="w-8 h-8" /></button></div>
+              <div className="flex justify-between items-center mb-12"><h2 className="text-4xl font-black italic uppercase tracking-tighter">Alta Aspirante</h2><button onClick={() => setIsModalOpen(false)} className="text-zinc-700 hover:text-white"><X className="w-8 h-8" /></button></div>
               <form onSubmit={handleCreateStudent} className="space-y-10">
                 <input type="text" className="w-full bg-black/40 border border-white/10 rounded-2xl py-6 px-10 outline-none focus:border-red-600 transition-all font-black uppercase italic text-white text-xl" value={newStudentName} onChange={e => setNewStudentName(e.target.value)} placeholder="NOMBRE COMPLETO" required autoFocus />
-                <button type="submit" className="w-full bg-red-600 py-7 rounded-2xl font-black uppercase text-[11px] shadow-2xl shadow-red-600/20 text-white">REGISTRAR EN RTD</button>
+                <button type="submit" className="w-full bg-red-600 py-7 rounded-2xl font-black uppercase text-[11px] shadow-2xl shadow-red-600/20 text-white active:scale-95 transition-all">REGISTRAR EN RTD</button>
               </form>
             </div>
           </div>
@@ -355,13 +367,13 @@ export default function App() {
 
         {/* MODAL NUEVO RECURSO */}
         {isResModalOpen && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/90 backdrop-blur-xl">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/90 backdrop-blur-xl text-white">
             <div className="bg-[#0a0a0a] border border-white/10 w-full max-w-xl rounded-[3.5rem] p-16 shadow-2xl">
-              <div className="flex justify-between items-center mb-12 text-white"><h2 className="text-4xl font-black italic uppercase tracking-tighter">Nuevo Recurso</h2><button onClick={() => setIsResModalOpen(false)} className="text-zinc-700 hover:text-white"><X className="w-8 h-8" /></button></div>
+              <div className="flex justify-between items-center mb-12"><h2 className="text-4xl font-black italic uppercase tracking-tighter">Nuevo Recurso</h2><button onClick={() => setIsResModalOpen(false)} className="text-zinc-700 hover:text-white"><X className="w-8 h-8" /></button></div>
               <form onSubmit={handleCreateResource} className="space-y-6">
                 <input type="text" className="w-full bg-black/40 border border-white/10 rounded-2xl py-6 px-10 text-white font-black italic uppercase outline-none focus:border-blue-600" value={newRes.title} onChange={e => setNewRes({...newRes, title: e.target.value})} placeholder="TÍTULO" required />
                 <input type="url" className="w-full bg-black/40 border border-white/10 rounded-2xl py-6 px-10 text-white font-black italic outline-none focus:border-blue-600" value={newRes.url} onChange={e => setNewRes({...newRes, url: e.target.value})} placeholder="URL" required />
-                <button type="submit" className="w-full bg-blue-600 py-7 rounded-2xl font-black uppercase text-[11px] text-white">PUBLICAR</button>
+                <button type="submit" className="w-full bg-blue-600 py-7 rounded-2xl font-black uppercase text-[11px] text-white transition-all">PUBLICAR</button>
               </form>
             </div>
           </div>
