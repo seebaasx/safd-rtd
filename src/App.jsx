@@ -46,7 +46,6 @@ export default function App() {
     { title: "SAN ANDREAS FIRE DEPARTMENT", subtitle: "ESTACIÓN Nº 3", image: "https://r2.fivemanage.com/rlMpa4HCjCLM3vQVrxiNo/imagen_2026-04-13_224256139.png" }
   ];
 
-  // 1. Carga de Librería y Sesión
   useEffect(() => {
     const script = document.createElement('script');
     script.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
@@ -63,7 +62,6 @@ export default function App() {
     document.body.appendChild(script);
   }, []);
 
-  // 2. Control Carrusel Landing
   useEffect(() => {
     if (!session) {
       const timer = setInterval(() => setCurrentSlide(prev => (prev + 1) % slides.length), 5000);
@@ -71,7 +69,6 @@ export default function App() {
     }
   }, [session]);
 
-  // 3. Información del Usuario logueado
   const instructorInfo = useMemo(() => {
     if (!session?.user?.email) return { name: "INVITADO", rango: "VISITANTE", fullTag: "[VISITANTE] INVITADO" };
     const email = session.user.email.toLowerCase();
@@ -98,16 +95,15 @@ export default function App() {
     }
   }, [selectedStudent, supabase]);
 
-  // FUNCIONES DE BORRADO
   const deleteStudent = async (id, e) => {
     e.stopPropagation();
-    if (!window.confirm("¿CONFIRMAR ELIMINACIÓN PERMANENTE DEL ALUMNO Y SU EXPEDIENTE?")) return;
+    if (!window.confirm("¿CONFIRMAR ELIMINACIÓN PERMANENTE DEL ALUMNO?")) return;
     const { error } = await supabase.from('students').delete().eq('id', id);
     if (!error) fetchAllData();
   };
 
   const deleteObservation = async (id) => {
-    if (!window.confirm("¿BORRAR ESTE COMENTARIO DEL REGISTRO?")) return;
+    if (!window.confirm("¿BORRAR COMENTARIO?")) return;
     const { error } = await supabase.from('observations').delete().eq('id', id);
     if (!error) setObservations(observations.filter(o => o.id !== id));
   };
@@ -130,13 +126,6 @@ export default function App() {
     if (!newStudentName.trim() || !supabase) return;
     const { error } = await supabase.from('students').insert([{ name: newStudentName, rango: 'Academy', horario: 'Mañana / Tarde' }]);
     if (!error) { setNewStudentName(''); setIsModalOpen(false); fetchAllData(); }
-  };
-
-  const handleCreateResource = async (e) => {
-    e.preventDefault();
-    if (!newRes.title || !newRes.url || !supabase) return;
-    const { error } = await supabase.from('resources').insert([newRes]);
-    if (!error) { setNewRes({ title: '', url: '' }); setIsResModalOpen(false); fetchAllData(); }
   };
 
   const sendObservation = async () => {
@@ -209,9 +198,6 @@ export default function App() {
             {isAdmin && !selectedStudent && activeTab === 'alumnos' && (
               <button onClick={() => setIsModalOpen(true)} className="bg-white text-black px-8 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-red-600 hover:text-white transition-all shadow-xl">+ ALTA ASPIRANTE</button>
             )}
-            {isAdmin && !selectedStudent && activeTab === 'recursos' && (
-              <button onClick={() => setIsResModalOpen(true)} className="bg-white text-black px-8 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-blue-600 hover:text-white transition-all shadow-xl">+ NUEVO RECURSO</button>
-            )}
           </div>
         </header>
 
@@ -238,7 +224,24 @@ export default function App() {
                </div>
             </div>
 
-            {/* SECCIÓN 2: HABILIDADES DE CAMPO */}
+            {/* --- NUEVO ORDEN: SECCIÓN 2 AHORA ES DÍAS ACADEMIA --- */}
+            <div className="bg-white/5 border border-white/10 rounded-[3rem] p-10 border-t-4 border-t-green-600 backdrop-blur-md shadow-2xl">
+              <div className="text-zinc-300 text-[10px] font-black uppercase tracking-widest mb-10 flex items-center gap-2"><Calendar className="w-4 h-4 text-green-600" /> Días Academia</div>
+              <table className="w-full text-left border-separate border-spacing-y-2">
+                <thead><tr className="text-zinc-600 text-[9px] font-black uppercase tracking-widest italic text-center"><th className="pb-4 text-left px-4">Módulo</th><th>P</th><th>A</th><th>R</th></tr></thead>
+                <tbody className="text-[10px] font-black uppercase italic text-center">
+                  {[ { key: 'asis_radio', label: 'RADIO & DISPATCH' }, { key: 'asis_auxilios', label: 'PRIMEROS AUXILIOS' }, { key: 'asis_incendios', label: 'INCENDIOS' }, { key: 'asis_excarcelacion', label: 'EXCARCELACIÓN' } ].map(mod => (
+                    <tr key={mod.key} className="bg-black/20"><td className="py-5 px-4 text-zinc-400 text-left">{mod.label}</td>
+                      {['p', 'a', 'r'].map(type => (
+                        <td key={type} className="py-5"><button onClick={() => updateStudentData(mod.key, type)} className={`w-5 h-5 rounded-md mx-auto border transition-all ${selectedStudent[mod.key] === type ? (type === 'p' ? 'bg-green-500 border-green-400 shadow-md shadow-green-500/20' : type === 'a' ? 'bg-red-500 border-red-400' : 'bg-blue-600 border-blue-400 shadow-md shadow-blue-500/20') : 'bg-zinc-900 border-zinc-800'}`} /></td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* --- SECCIÓN 3 AHORA ES HABILIDADES DE CAMPO --- */}
             <div>
               <div className="flex items-center gap-6 mb-10"><h2 className="text-4xl font-black italic uppercase tracking-tighter">Habilidades de Campo</h2><div className="h-px flex-1 bg-white/10"></div></div>
               <div className="space-y-4">
@@ -257,23 +260,6 @@ export default function App() {
                   </div>
                 ))}
               </div>
-            </div>
-
-            {/* SECCIÓN 3: DÍAS ACADEMIA */}
-            <div className="bg-white/5 border border-white/10 rounded-[3rem] p-10 border-t-4 border-t-green-600 backdrop-blur-md shadow-2xl">
-              <div className="text-zinc-300 text-[10px] font-black uppercase tracking-widest mb-10 flex items-center gap-2"><Calendar className="w-4 h-4 text-green-600" /> Días Academia</div>
-              <table className="w-full text-left border-separate border-spacing-y-2">
-                <thead><tr className="text-zinc-600 text-[9px] font-black uppercase tracking-widest italic text-center"><th className="pb-4 text-left px-4">Módulo</th><th>P</th><th>A</th><th>R</th></tr></thead>
-                <tbody className="text-[10px] font-black uppercase italic text-center">
-                  {[ { key: 'asis_radio', label: 'RADIO & DISPATCH' }, { key: 'asis_auxilios', label: 'PRIMEROS AUXILIOS' }, { key: 'asis_incendios', label: 'INCENDIOS' }, { key: 'asis_excarcelacion', label: 'EXCARCELACIÓN' } ].map(mod => (
-                    <tr key={mod.key} className="bg-black/20"><td className="py-5 px-4 text-zinc-400 text-left">{mod.label}</td>
-                      {['p', 'a', 'r'].map(type => (
-                        <td key={type} className="py-5"><button onClick={() => updateStudentData(mod.key, type)} className={`w-5 h-5 rounded-md mx-auto border transition-all ${selectedStudent[mod.key] === type ? (type === 'p' ? 'bg-green-500 border-green-400 shadow-md shadow-green-500/20' : type === 'a' ? 'bg-red-500 border-red-400' : 'bg-blue-600 border-blue-400 shadow-md shadow-blue-500/20') : 'bg-zinc-900 border-zinc-800'}`} /></td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
             </div>
 
             {/* SECCIÓN 4: VOTACIÓN Y CHAT */}
@@ -311,7 +297,7 @@ export default function App() {
             </div>
           </div>
         ) : (
-          /* --- LISTADOS SEGÚN PESTAÑA --- */
+          /* --- LISTADOS SEGÚN PESTAÑA (ALUMNOS/PROGRESO/BIBLIOTECA) --- */
           <div className="animate-in fade-in duration-700">
             {activeTab === 'alumnos' && (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -354,26 +340,12 @@ export default function App() {
 
         {/* MODAL NUEVO ASPIRANTE */}
         {isModalOpen && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/90 backdrop-blur-xl text-white">
-            <div className="bg-[#0a0a0a] border border-white/10 w-full max-w-xl rounded-[3.5rem] p-16 shadow-2xl">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/90 backdrop-blur-xl">
+            <div className="bg-[#0a0a0a] border border-white/10 w-full max-w-xl rounded-[3.5rem] p-16 shadow-2xl text-white">
               <div className="flex justify-between items-center mb-12"><h2 className="text-4xl font-black italic uppercase tracking-tighter">Alta Aspirante</h2><button onClick={() => setIsModalOpen(false)} className="text-zinc-700 hover:text-white"><X className="w-8 h-8" /></button></div>
               <form onSubmit={handleCreateStudent} className="space-y-10">
                 <input type="text" className="w-full bg-black/40 border border-white/10 rounded-2xl py-6 px-10 outline-none focus:border-red-600 transition-all font-black uppercase italic text-white text-xl" value={newStudentName} onChange={e => setNewStudentName(e.target.value)} placeholder="NOMBRE COMPLETO" required autoFocus />
                 <button type="submit" className="w-full bg-red-600 py-7 rounded-2xl font-black uppercase text-[11px] shadow-2xl shadow-red-600/20 text-white active:scale-95 transition-all">REGISTRAR EN RTD</button>
-              </form>
-            </div>
-          </div>
-        )}
-
-        {/* MODAL NUEVO RECURSO */}
-        {isResModalOpen && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/90 backdrop-blur-xl text-white">
-            <div className="bg-[#0a0a0a] border border-white/10 w-full max-w-xl rounded-[3.5rem] p-16 shadow-2xl">
-              <div className="flex justify-between items-center mb-12"><h2 className="text-4xl font-black italic uppercase tracking-tighter">Nuevo Recurso</h2><button onClick={() => setIsResModalOpen(false)} className="text-zinc-700 hover:text-white"><X className="w-8 h-8" /></button></div>
-              <form onSubmit={handleCreateResource} className="space-y-6">
-                <input type="text" className="w-full bg-black/40 border border-white/10 rounded-2xl py-6 px-10 text-white font-black italic uppercase outline-none focus:border-blue-600" value={newRes.title} onChange={e => setNewRes({...newRes, title: e.target.value})} placeholder="TÍTULO" required />
-                <input type="url" className="w-full bg-black/40 border border-white/10 rounded-2xl py-6 px-10 text-white font-black italic outline-none focus:border-blue-600" value={newRes.url} onChange={e => setNewRes({...newRes, url: e.target.value})} placeholder="URL" required />
-                <button type="submit" className="w-full bg-blue-600 py-7 rounded-2xl font-black uppercase text-[11px] text-white transition-all">PUBLICAR</button>
               </form>
             </div>
           </div>
