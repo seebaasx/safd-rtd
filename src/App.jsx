@@ -38,28 +38,52 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    console.log("Iniciando verificación de sesión...");
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
-      if (session) { setHasEntered(true); fetchData(); }
+      if (session) { 
+        console.log("Sesión activa detectada para:", session.user.email);
+        setHasEntered(true); 
+        fetchData(); 
+      }
       setLoading(false);
     });
   }, []);
 
   async function fetchData() {
-    const { data } = await supabase.from('students').select('*').order('name');
-    if (data) setStudents(data);
+    console.log("Intentando descargar lista de alumnos...");
+    const { data, error } = await supabase.from('students').select('*').order('name');
+    if (error) {
+      console.error("Error al obtener alumnos (¿RLS activo?):", error.message);
+    }
+    if (data) {
+      console.log("Alumnos cargados:", data.length);
+      setStudents(data);
+    }
   }
 
   const handleLogin = async (e) => {
     e.preventDefault();
-    const { error } = await supabase.auth.signInWithPassword({ email: emailInput, password: passInput });
-    if (error) alert("Error de acceso");
-    else { setHasEntered(true); fetchData(); }
+    console.log("Enviando credenciales para:", emailInput);
+    
+    const { data, error } = await supabase.auth.signInWithPassword({ 
+      email: emailInput, 
+      password: passInput 
+    });
+
+    if (error) {
+      console.error("Fallo de autenticación:", error.message);
+      alert("Error de acceso: " + error.message);
+    } else {
+      console.log("Acceso concedido para:", data.user.email);
+      setHasEntered(true); 
+      fetchData(); 
+    }
   };
 
   if (loading) return <div className="min-h-screen bg-zinc-950 flex items-center justify-center text-red-600 font-black tracking-tighter text-2xl animate-pulse">SINCRO_SISTEMA...</div>;
 
-  // PANTALLA 1: CARRUSEL INICIAL (MAQUETACIÓN CANVAS)
+  // PANTALLA 1: CARRUSEL INICIAL
   if (!hasEntered && !session) {
     return (
       <div className="min-h-screen bg-zinc-950 flex flex-col font-sans overflow-hidden text-white">
@@ -68,7 +92,7 @@ export default function App() {
             <div className="bg-red-600 p-2 rounded-lg"><Flame className="w-8 h-8 text-white" /></div>
             <span className="text-2xl font-black italic tracking-tighter">SAFD <span className="text-red-600">RTD</span></span>
           </div>
-          <button onClick={() => setHasEntered(true)} className="px-8 py-3 bg-white text-black rounded-full font-black uppercase text-[10px] tracking-widest hover:bg-red-600 hover:text-white transition-all">Acceder al Sistema</button>
+          <button onClick={() => setHasEntered(true)} className="px-8 py-3 bg-white text-black rounded-full font-black uppercase text-[10px] tracking-widest hover:bg-red-600 hover:text-white transition-all shadow-lg">Acceder al Sistema</button>
         </nav>
         
         <div className="relative flex-1 flex items-center justify-center">
@@ -88,14 +112,14 @@ export default function App() {
     );
   }
 
-  // PANTALLA 2: LOGIN (MAQUETACIÓN CANVAS)
+  // PANTALLA 2: LOGIN
   if (!session) {
     return (
       <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-6 text-white">
         <div className="w-full max-w-md bg-zinc-900/50 border border-zinc-800 rounded-[3rem] p-12 backdrop-blur-xl shadow-2xl">
           <div className="flex flex-col items-center mb-12">
             <Flame className="w-16 h-16 text-red-600 mb-6 animate-pulse" />
-            <h1 className="text-4xl font-black italic tracking-tighter">IDENTIFICACIÓN</h1>
+            <h1 className="text-4xl font-black italic tracking-tighter text-center leading-tight uppercase">Identificación Operativa</h1>
             <p className="text-zinc-500 text-[10px] font-black uppercase tracking-widest mt-2">Acceso Restringido SAFD</p>
           </div>
           <form onSubmit={handleLogin} className="space-y-5">
@@ -115,7 +139,7 @@ export default function App() {
     );
   }
 
-  // PANTALLA 3: DASHBOARD (MAQUETACIÓN CANVAS)
+  // PANTALLA 3: DASHBOARD
   return (
     <div className="min-h-screen bg-zinc-950 text-white font-sans flex flex-col md:flex-row">
       <aside className="w-full md:w-32 bg-zinc-900 border-r border-zinc-800 flex flex-col items-center py-12 z-50 sticky top-0 md:h-screen">
@@ -125,7 +149,7 @@ export default function App() {
           <button onClick={() => setActiveTab('progreso')} className={`p-6 rounded-3xl transition-all ${activeTab === 'progreso' ? 'bg-red-600 text-white scale-110 shadow-xl shadow-red-600/20' : 'text-zinc-700 hover:text-white'}`}><BarChart3 className="w-7 h-7" /></button>
           <button onClick={() => setActiveTab('recursos')} className={`p-6 rounded-3xl transition-all ${activeTab === 'recursos' ? 'bg-red-600 text-white scale-110 shadow-xl shadow-red-600/20' : 'text-zinc-700 hover:text-white'}`}><BookOpen className="w-7 h-7" /></button>
         </nav>
-        <button onClick={() => supabase.auth.signOut()} className="mt-auto p-6 text-zinc-800 hover:text-red-500 transition-all"><LogOut className="w-7 h-7" /></button>
+        <button onClick={() => supabase.auth.signOut().then(() => window.location.reload())} className="mt-auto p-6 text-zinc-800 hover:text-red-500 transition-all"><LogOut className="w-7 h-7" /></button>
       </aside>
 
       <main className="flex-1 px-8 py-12 md:px-20 md:py-20 overflow-y-auto">
@@ -139,41 +163,37 @@ export default function App() {
               <Activity className="w-4 h-4 text-red-600 animate-pulse" />
               Estado: <span className="text-white">Operativo</span>
               <span className="w-1 h-1 bg-zinc-800 rounded-full" />
-              Terminal: <span className="text-white">{session.user.email.split('@')[0]}</span>
+              Terminal: <span className="text-white">{session.user.email.split('@')[0].toUpperCase()}</span>
             </div>
           </div>
           {activeTab === 'alumnos' && (
-            <button className="bg-white text-black px-12 py-6 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-red-600 hover:text-white transition-all shadow-2xl">Nuevo Aspirante</button>
+            <button className="bg-white text-black px-12 py-6 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-red-600 hover:text-white transition-all shadow-2xl shadow-white/5">Nuevo Aspirante</button>
           )}
         </div>
 
-        {/* CONTENIDO PRINCIPAL */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-           {students.map(student => (
-             <div key={student.id} className="bg-zinc-900/50 border border-zinc-800 p-8 rounded-[2.5rem] hover:border-red-600/50 transition-all group cursor-pointer">
-                <div className="flex justify-between items-start mb-8">
-                  <div className="w-14 h-14 bg-zinc-800 rounded-2xl flex items-center justify-center group-hover:bg-red-600 transition-colors"><User className="w-6 h-6" /></div>
-                  <span className="text-[9px] font-black uppercase px-4 py-2 border border-zinc-800 rounded-full text-zinc-500">ID: {student.id.slice(0,5)}</span>
-                </div>
-                <h3 className="text-3xl font-black uppercase italic mb-2 tracking-tighter">{student.name}</h3>
-                <p className="text-zinc-500 text-[10px] font-black uppercase tracking-widest mb-8">Aspirante SAFD</p>
-                <div className="flex items-center justify-between pt-6 border-t border-zinc-800/50">
-                  <div className="flex -space-x-2">
-                    {[1,2,3].map(i => <div key={i} className="w-6 h-6 rounded-full bg-zinc-800 border-2 border-zinc-900" />)}
-                  </div>
-                  <ChevronRight className="w-5 h-5 text-zinc-700 group-hover:text-red-600 group-hover:translate-x-2 transition-all" />
-                </div>
+           {students.length === 0 ? (
+             <div className="col-span-full border border-dashed border-zinc-800 rounded-3xl p-20 text-center text-zinc-600 uppercase font-black text-xs tracking-widest">
+                No hay expedientes activos en la base de datos
              </div>
-           ))}
-        </div>
-
-        <div className="mt-32 pt-12 border-t border-zinc-900 flex flex-col md:flex-row justify-between items-center gap-6">
-          <p className="text-zinc-800 text-[9px] font-black uppercase tracking-[0.3em]">SAFD RTD Operations Portal // v2.0.4</p>
-          <div className="flex gap-8 text-zinc-800">
-             <ShieldCheck className="w-5 h-5" />
-             <Lock className="w-5 h-5" />
-             <Activity className="w-5 h-5" />
-          </div>
+           ) : (
+             students.map(student => (
+               <div key={student.id} className="bg-zinc-900/50 border border-zinc-800 p-8 rounded-[2.5rem] hover:border-red-600/50 transition-all group cursor-pointer shadow-xl">
+                  <div className="flex justify-between items-start mb-8">
+                    <div className="w-14 h-14 bg-zinc-800 rounded-2xl flex items-center justify-center group-hover:bg-red-600 transition-colors duration-500"><User className="w-6 h-6 text-zinc-400 group-hover:text-white" /></div>
+                    <span className="text-[9px] font-black uppercase px-4 py-2 border border-zinc-800 rounded-full text-zinc-500">ID_REF: {student.id.slice(0,5)}</span>
+                  </div>
+                  <h3 className="text-3xl font-black uppercase italic mb-2 tracking-tighter group-hover:text-red-600 transition-colors">{student.name}</h3>
+                  <p className="text-zinc-500 text-[10px] font-black uppercase tracking-widest mb-8">Aspirante SAFD // Rango 0</p>
+                  <div className="flex items-center justify-between pt-6 border-t border-zinc-800/50">
+                    <div className="flex -space-x-2">
+                      {[1,2,3].map(i => <div key={i} className="w-6 h-6 rounded-full bg-zinc-800 border-2 border-zinc-900" />)}
+                    </div>
+                    <ChevronRight className="w-5 h-5 text-zinc-700 group-hover:text-red-600 group-hover:translate-x-2 transition-all duration-300" />
+                  </div>
+               </div>
+             ))
+           )}
         </div>
       </main>
     </div>
