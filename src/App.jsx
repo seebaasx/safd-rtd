@@ -1,7 +1,5 @@
-import './index.css'; // Asegúrate de que el nombre coincida con tu archivo
 import React, { useState, useEffect, useMemo } from 'react';
-// ...
-import React, { useState, useEffect, useMemo } from 'react';
+import './index.css'; 
 import { createClient } from '@supabase/supabase-js';
 import { 
   Users, LogOut, Plus, Trash2, Search, ChevronRight, Flame, 
@@ -11,35 +9,13 @@ import {
   ThumbsUp, ThumbsDown, UserCheck, Calendar 
 } from 'lucide-react';
 
-// --- CONFIGURACIÓN SUPABASE ---
-// URL corregida con el protocolo https:// necesario para la conexión
+// --- CONFIGURACIÓN ---
 const supabaseUrl = 'https://bwisxczbkjlxyunpqqld.supabase.co'; 
 const supabaseKey = 'sb_publishable_MEosBztTd-5Ot5Rb-jhaHg_BEeiWZ19';
 const supabase = createClient(supabaseUrl, supabaseKey);
-
-// --- 🛡️ CONFIGURACIÓN DE PODERES ADMIN ---
-// Se ha corregido la sintaxis de la variable y asignado el admin solicitado
 const ADMIN_EMAILS = ["iris@safd.com"];
 
-const skillsOrder = [
-  "Actitud", "Mando", "Buen uso de interna", 
-  "Comunicación por radio", "Primeros auxilios", 
-  "Excarcelaciones", "Incendios"
-];
-
-const StatusBadge = ({ status }) => {
-  const colors = {
-    'Activo': 'bg-green-500/10 text-green-500 border-green-500/20',
-    'Suspendido': 'bg-red-500/10 text-red-500 border-red-500/20',
-    'Graduado': 'bg-blue-500/10 text-blue-500 border-blue-500/20',
-    'En Pruebas': 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20'
-  };
-  return (
-    <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase border tracking-widest ${colors[status] || 'bg-zinc-800 text-zinc-400'}`}>
-      {status || 'Activo'}
-    </span>
-  );
-};
+const skillsOrder = ["Actitud", "Mando", "Buen uso de interna", "Comunicación por radio", "Primeros auxilios", "Excarcelaciones", "Incendios"];
 
 export default function App() {
   const [session, setSession] = useState(null);
@@ -47,14 +23,9 @@ export default function App() {
   const [hasEntered, setHasEntered] = useState(false);
   const [activeTab, setActiveTab] = useState('alumnos');
   const [students, setStudents] = useState([]);
-  const [resources, setResources] = useState([]);
-  const [selectedStudentId, setSelectedStudentId] = useState(null);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [currentSlide, setCurrentSlide] = useState(0);
   const [emailInput, setEmailInput] = useState('');
   const [passInput, setPassInput] = useState('');
-  const [isAddingStudent, setIsAddingStudent] = useState(false);
-  const [newStudentName, setNewStudentName] = useState('');
-  const [currentSlide, setCurrentSlide] = useState(0);
 
   const slides = [
     { title: "RTD PORTAL", subtitle: "RECRUITMENT & TRAINING DIVISION", image: "https://images.unsplash.com/photo-1582213700411-9faaa2b8b935?q=80&w=2070" },
@@ -72,69 +43,43 @@ export default function App() {
       if (session) { setHasEntered(true); fetchData(); }
       setLoading(false);
     });
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      if (session) fetchData();
-    });
-    return () => subscription.unsubscribe();
   }, []);
 
   async function fetchData() {
-    try {
-      const { data: stds } = await supabase.from('students').select('*').order('name');
-      const { data: ress } = await supabase.from('resources').select('*');
-      if (stds) setStudents(stds);
-      if (ress) setResources(ress);
-    } catch (err) {
-      console.error("Error cargando datos:", err);
-    }
+    const { data } = await supabase.from('students').select('*').order('name');
+    if (data) setStudents(data);
   }
-
-  const isAdmin = useMemo(() => session && ADMIN_EMAILS.includes(session.user.email), [session]);
-  const instructorName = useMemo(() => session?.user.email.split('@')[0].toUpperCase(), [session]);
-  const selectedStudent = useMemo(() => students.find(s => s.id === selectedStudentId), [students, selectedStudentId]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
     const { error } = await supabase.auth.signInWithPassword({ email: emailInput, password: passInput });
-    if (error) alert("Usuario o contraseña incorrectos");
+    if (error) alert("Error de acceso");
+    else { setHasEntered(true); fetchData(); }
   };
 
-  const handleAddStudent = async (e) => {
-    e.preventDefault();
-    if (!newStudentName.trim() || !isAdmin) return;
-    const initialGoals = {};
-    skillsOrder.forEach(s => initialGoals[s] = { status: 'no', date: '', instructor: '' });
-    await supabase.from('students').insert([{ 
-      name: newStudentName, goals: initialGoals, status: 'Activo',
-      attendance: { "RADIO": {p:false,a:false,r:false}, "P. AUX": {p:false,a:false,r:false}, "INCENDIOS": {p:false,a:false,r:false}, "EXCARCEL.": {p:false,a:false,r:false} }
-    }]);
-    setNewStudentName(''); setIsAddingStudent(false); fetchData();
-  };
+  if (loading) return <div className="min-h-screen bg-zinc-950 flex items-center justify-center text-red-600 font-black tracking-tighter text-2xl animate-pulse">SINCRO_SISTEMA...</div>;
 
-  const updateStudent = async (id, updates) => {
-    await supabase.from('students').update(updates).eq('id', id);
-    fetchData();
-  };
-
-  if (loading) return <div className="min-h-screen bg-zinc-950 flex items-center justify-center text-red-600 font-black tracking-widest">SINCRO...</div>;
-
+  // PANTALLA 1: CARRUSEL INICIAL (MAQUETACIÓN CANVAS)
   if (!hasEntered && !session) {
     return (
       <div className="min-h-screen bg-zinc-950 flex flex-col font-sans overflow-hidden text-white">
-        <nav className="fixed top-0 w-full z-50 px-12 py-8 flex justify-between items-center bg-gradient-to-b from-black/80 to-transparent">
-          <div className="flex items-center gap-4"><Flame className="w-10 h-10 text-red-600" /><span className="text-2xl font-black italic">SAFD RTD</span></div>
-          <button onClick={() => setHasEntered(true)} className="px-8 py-3 bg-red-600 rounded-full font-black uppercase text-xs hover:bg-red-500 transition-colors">Acceder</button>
+        <nav className="fixed top-0 w-full z-50 px-12 py-8 flex justify-between items-center bg-gradient-to-b from-black/90 to-transparent">
+          <div className="flex items-center gap-4">
+            <div className="bg-red-600 p-2 rounded-lg"><Flame className="w-8 h-8 text-white" /></div>
+            <span className="text-2xl font-black italic tracking-tighter">SAFD <span className="text-red-600">RTD</span></span>
+          </div>
+          <button onClick={() => setHasEntered(true)} className="px-8 py-3 bg-white text-black rounded-full font-black uppercase text-[10px] tracking-widest hover:bg-red-600 hover:text-white transition-all">Acceder al Sistema</button>
         </nav>
+        
         <div className="relative flex-1 flex items-center justify-center">
           {slides.map((slide, i) => (
             <div key={i} className={`absolute inset-0 transition-opacity duration-1000 ${i === currentSlide ? 'opacity-100' : 'opacity-0'}`}>
-              <div className="absolute inset-0 bg-black/60 z-10" />
-              <img src={slide.image} className="w-full h-full object-cover grayscale opacity-30" alt="" />
-              <div className="absolute inset-0 z-20 flex flex-col items-center justify-center text-center px-4">
-                <h2 className="text-6xl md:text-8xl font-black italic mb-4">{slide.title}</h2>
-                <p className="text-zinc-400 italic mb-10 tracking-widest uppercase">{slide.subtitle}</p>
-                <button onClick={() => setHasEntered(true)} className="bg-white text-black px-12 py-5 rounded-full font-black uppercase hover:bg-red-600 hover:text-white transition-all shadow-2xl">Abrir Sistema</button>
+              <div className="absolute inset-0 bg-zinc-950/70 z-10" />
+              <img src={slide.image} className="w-full h-full object-cover grayscale opacity-40 scale-105" alt="" />
+              <div className="absolute inset-0 z-20 flex flex-col items-center justify-center text-center px-6">
+                <h2 className="text-7xl md:text-[10rem] font-black italic mb-2 tracking-tighter leading-none">{slide.title}</h2>
+                <p className="text-red-600 font-black italic mb-12 tracking-[0.5em] uppercase text-sm md:text-xl">{slide.subtitle}</p>
+                <button onClick={() => setHasEntered(true)} className="bg-red-600 text-white px-16 py-6 rounded-full font-black uppercase text-xs tracking-[0.2em] hover:scale-110 transition-all shadow-[0_0_50px_rgba(220,38,38,0.5)]">Inicializar Protocolo</button>
               </div>
             </div>
           ))}
@@ -143,57 +88,92 @@ export default function App() {
     );
   }
 
+  // PANTALLA 2: LOGIN (MAQUETACIÓN CANVAS)
   if (!session) {
     return (
       <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-6 text-white">
-        <div className="w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-[2.5rem] p-10 shadow-2xl">
-          <div className="flex flex-col items-center mb-10"><Flame className="w-12 h-12 text-red-600 mb-4" /><h1 className="text-3xl font-black italic">PORTAL SAFD</h1></div>
-          <form onSubmit={handleLogin} className="space-y-4">
-            <input type="text" placeholder="Usuario (ej: iris@safd.com)" className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl py-4 px-6 outline-none focus:border-red-600 transition-colors" value={emailInput} onChange={e => setEmailInput(e.target.value)} required />
-            <input type="password" placeholder="Contraseña" className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl py-4 px-6 outline-none focus:border-red-600 transition-colors" value={passInput} onChange={e => setPassInput(e.target.value)} required />
-            <button type="submit" className="w-full bg-red-600 hover:bg-red-500 py-4 rounded-xl font-black uppercase tracking-widest transition-all active:scale-95">Entrar</button>
-            <button type="button" onClick={() => setHasEntered(false)} className="w-full text-zinc-600 text-[10px] uppercase font-black mt-4 hover:text-zinc-400 transition-colors">Volver al Inicio</button>
+        <div className="w-full max-w-md bg-zinc-900/50 border border-zinc-800 rounded-[3rem] p-12 backdrop-blur-xl shadow-2xl">
+          <div className="flex flex-col items-center mb-12">
+            <Flame className="w-16 h-16 text-red-600 mb-6 animate-pulse" />
+            <h1 className="text-4xl font-black italic tracking-tighter">IDENTIFICACIÓN</h1>
+            <p className="text-zinc-500 text-[10px] font-black uppercase tracking-widest mt-2">Acceso Restringido SAFD</p>
+          </div>
+          <form onSubmit={handleLogin} className="space-y-5">
+            <div className="space-y-2">
+              <label className="text-[10px] font-black uppercase ml-4 text-zinc-500">Email Operativo</label>
+              <input type="email" placeholder="iris@safd.com" className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl py-5 px-8 outline-none focus:border-red-600 transition-all font-bold" value={emailInput} onChange={e => setEmailInput(e.target.value)} required />
+            </div>
+            <div className="space-y-2">
+              <label className="text-[10px] font-black uppercase ml-4 text-zinc-500">Código de Seguridad</label>
+              <input type="password" placeholder="••••••••" className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl py-5 px-8 outline-none focus:border-red-600 transition-all font-bold" value={passInput} onChange={e => setPassInput(e.target.value)} required />
+            </div>
+            <button type="submit" className="w-full bg-red-600 hover:bg-red-500 py-6 rounded-2xl font-black uppercase tracking-[0.2em] text-xs transition-all active:scale-95 shadow-lg shadow-red-600/20">Verificar Credenciales</button>
+            <button type="button" onClick={() => setHasEntered(false)} className="w-full text-zinc-700 text-[9px] uppercase font-black mt-6 tracking-widest hover:text-zinc-400">Abortar Conexión</button>
           </form>
         </div>
       </div>
     );
   }
 
+  // PANTALLA 3: DASHBOARD (MAQUETACIÓN CANVAS)
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 font-sans flex flex-col md:flex-row">
-      <aside className="w-full md:w-28 bg-zinc-900 border-r border-zinc-800 flex flex-col items-center py-10 z-50 sticky top-0 md:h-screen shadow-xl">
-        <div className="mb-16 cursor-pointer" onClick={() => setSelectedStudentId(null)}><Flame className="w-12 h-12 text-red-600" /></div>
-        <nav className="flex md:flex-col gap-10 flex-1">
-          <button onClick={() => {setActiveTab('alumnos'); setSelectedStudentId(null);}} className={`p-5 rounded-2xl transition-all ${activeTab === 'alumnos' ? 'bg-red-600 text-white shadow-xl' : 'text-zinc-600 hover:text-white'}`}><Users className="w-6 h-6" /></button>
-          <button onClick={() => {setActiveTab('progreso'); setSelectedStudentId(null);}} className={`p-5 rounded-2xl transition-all ${activeTab === 'progreso' ? 'bg-red-600 text-white shadow-xl' : 'text-zinc-600 hover:text-white'}`}><BarChart3 className="w-6 h-6" /></button>
-          <button onClick={() => {setActiveTab('recursos'); setSelectedStudentId(null);}} className={`p-5 rounded-2xl transition-all ${activeTab === 'recursos' ? 'bg-red-600 text-white shadow-xl' : 'text-zinc-600 hover:text-white'}`}><BookOpen className="w-6 h-6" /></button>
+    <div className="min-h-screen bg-zinc-950 text-white font-sans flex flex-col md:flex-row">
+      <aside className="w-full md:w-32 bg-zinc-900 border-r border-zinc-800 flex flex-col items-center py-12 z-50 sticky top-0 md:h-screen">
+        <div className="mb-20 bg-red-600 p-3 rounded-2xl shadow-[0_0_20px_rgba(220,38,38,0.3)]"><Flame className="w-8 h-8 text-white" /></div>
+        <nav className="flex md:flex-col gap-12 flex-1">
+          <button onClick={() => setActiveTab('alumnos')} className={`p-6 rounded-3xl transition-all ${activeTab === 'alumnos' ? 'bg-red-600 text-white scale-110 shadow-xl shadow-red-600/20' : 'text-zinc-700 hover:text-white'}`}><Users className="w-7 h-7" /></button>
+          <button onClick={() => setActiveTab('progreso')} className={`p-6 rounded-3xl transition-all ${activeTab === 'progreso' ? 'bg-red-600 text-white scale-110 shadow-xl shadow-red-600/20' : 'text-zinc-700 hover:text-white'}`}><BarChart3 className="w-7 h-7" /></button>
+          <button onClick={() => setActiveTab('recursos')} className={`p-6 rounded-3xl transition-all ${activeTab === 'recursos' ? 'bg-red-600 text-white scale-110 shadow-xl shadow-red-600/20' : 'text-zinc-700 hover:text-white'}`}><BookOpen className="w-7 h-7" /></button>
         </nav>
-        <button onClick={() => supabase.auth.signOut()} className="mt-auto p-5 text-zinc-700 hover:text-red-500 transition-all"><LogOut className="w-6 h-6" /></button>
+        <button onClick={() => supabase.auth.signOut()} className="mt-auto p-6 text-zinc-800 hover:text-red-500 transition-all"><LogOut className="w-7 h-7" /></button>
       </aside>
 
-      <main className="flex-1 overflow-y-auto px-6 py-12 md:px-16 md:py-16">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 mb-16">
+      <main className="flex-1 px-8 py-12 md:px-20 md:py-20 overflow-y-auto">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-24 gap-8">
           <div>
-            <h1 className="text-6xl font-black text-white uppercase italic tracking-tighter leading-none">
-                {activeTab === 'alumnos' ? 'Expedientes' : activeTab === 'progreso' ? 'Estadísticas' : 'Biblioteca'}
+            <span className="text-red-600 font-black uppercase text-[10px] tracking-[0.4em] mb-4 block">División de Reclutamiento</span>
+            <h1 className="text-7xl md:text-9xl font-black uppercase italic tracking-tighter leading-[0.8] mb-6">
+              {activeTab === 'alumnos' ? 'EXPEDIENTES' : activeTab === 'progreso' ? 'ESTADÍSTICAS' : 'BIBLIOTECA'}
             </h1>
-            <p className="text-[10px] text-zinc-500 font-black uppercase mt-5 flex items-center gap-3">
-              <Activity className="w-4 h-4 text-red-600 animate-pulse" /> 
-              Operativo: <span className="text-white underline decoration-red-900 decoration-4">Inst. {instructorName}</span>
-              {isAdmin && <span className="bg-blue-600 text-white text-[8px] px-2 py-0.5 rounded-full font-black ml-2 shadow-lg">ADMIN</span>}
-            </p>
+            <div className="flex items-center gap-4 text-[10px] font-black uppercase text-zinc-500 tracking-widest">
+              <Activity className="w-4 h-4 text-red-600 animate-pulse" />
+              Estado: <span className="text-white">Operativo</span>
+              <span className="w-1 h-1 bg-zinc-800 rounded-full" />
+              Terminal: <span className="text-white">{session.user.email.split('@')[0]}</span>
+            </div>
           </div>
-          {activeTab === 'alumnos' && !selectedStudentId && isAdmin && (
-            <button onClick={() => setIsAddingStudent(!isAddingStudent)} className="bg-white text-black hover:bg-red-600 hover:text-white px-10 py-5 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all shadow-xl">
-              {isAddingStudent ? 'Volver' : 'Nuevo Aspirante'}
-            </button>
+          {activeTab === 'alumnos' && (
+            <button className="bg-white text-black px-12 py-6 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-red-600 hover:text-white transition-all shadow-2xl">Nuevo Aspirante</button>
           )}
         </div>
 
-        {/* Aquí iría la lógica de renderizado de tablas/lista (Omitida por brevedad para centrarme en la configuración) */}
-        
-        <div className="fixed bottom-6 right-6 p-4 text-zinc-700 text-[10px] italic bg-zinc-950/80 rounded-lg">
-            Sistema de Gestión de Personal SAFD v2.0 - Conexión Supabase Activa
+        {/* CONTENIDO PRINCIPAL */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+           {students.map(student => (
+             <div key={student.id} className="bg-zinc-900/50 border border-zinc-800 p-8 rounded-[2.5rem] hover:border-red-600/50 transition-all group cursor-pointer">
+                <div className="flex justify-between items-start mb-8">
+                  <div className="w-14 h-14 bg-zinc-800 rounded-2xl flex items-center justify-center group-hover:bg-red-600 transition-colors"><User className="w-6 h-6" /></div>
+                  <span className="text-[9px] font-black uppercase px-4 py-2 border border-zinc-800 rounded-full text-zinc-500">ID: {student.id.slice(0,5)}</span>
+                </div>
+                <h3 className="text-3xl font-black uppercase italic mb-2 tracking-tighter">{student.name}</h3>
+                <p className="text-zinc-500 text-[10px] font-black uppercase tracking-widest mb-8">Aspirante SAFD</p>
+                <div className="flex items-center justify-between pt-6 border-t border-zinc-800/50">
+                  <div className="flex -space-x-2">
+                    {[1,2,3].map(i => <div key={i} className="w-6 h-6 rounded-full bg-zinc-800 border-2 border-zinc-900" />)}
+                  </div>
+                  <ChevronRight className="w-5 h-5 text-zinc-700 group-hover:text-red-600 group-hover:translate-x-2 transition-all" />
+                </div>
+             </div>
+           ))}
+        </div>
+
+        <div className="mt-32 pt-12 border-t border-zinc-900 flex flex-col md:flex-row justify-between items-center gap-6">
+          <p className="text-zinc-800 text-[9px] font-black uppercase tracking-[0.3em]">SAFD RTD Operations Portal // v2.0.4</p>
+          <div className="flex gap-8 text-zinc-800">
+             <ShieldCheck className="w-5 h-5" />
+             <Lock className="w-5 h-5" />
+             <Activity className="w-5 h-5" />
+          </div>
         </div>
       </main>
     </div>

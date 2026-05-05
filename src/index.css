@@ -1,15 +1,28 @@
 @import "tailwindcss";
 
-/* Esto asegura que el fondo negro ocupe toda la pantalla sin bordes blancos */
-body {
-  margin: 0;
-  padding: 0;
-  background-color: #09090b; /* Color zinc-950 */
+@theme {
+  --color-zinc-950: #09090b;
+  --color-red-600: #dc2626;
 }
 
-/* Eliminamos las restricciones de ancho que tenías antes */
+:root {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background-color: #09090b; /* Zinc 950 */
+  color: #f4f4f5;
+  font-family: system-ui, -apple-system, sans-serif;
+  overflow-x: hidden;
+}
+
+/* Esto elimina el recuadro blanco de 1126px que tenías antes */
 #root {
   width: 100%;
-  margin: 0;
-  text-align: left; /* Para que el dashboard no se centre como un documento */
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
