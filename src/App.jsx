@@ -12,7 +12,7 @@ const supabaseKey = 'sb_publishable_MEosBztTd-5Ot5Rb-jhaHg_BEeiWZ19';
 // --- CONFIGURACIÓN DE ACCESO ---
 const ADMIN_EMAILS = ["iris@safd.com"]; 
 const USER_ROLES = {
-  "iris@safd.com": JEFA DE BATALLÓN",
+  "iris@safd.com": "JEFA DE BATALLÓN",
 };
 
 const RANGOS_ACADEMIA = ["Rango 0", "Aspirante", "Bombero II", "Bombero I", "Oficial"];
