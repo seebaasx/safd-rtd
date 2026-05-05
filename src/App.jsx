@@ -13,6 +13,7 @@ const supabaseKey = 'sb_publishable_MEosBztTd-5Ot5Rb-jhaHg_BEeiWZ19';
 const ADMIN_EMAILS = ["iris@safd.com"]; 
 const USER_ROLES = {
   "iris@safd.com": "JEFA DE BATALLÓN",
+  "blakecassidy@safd.com": "Teniente",
 };
 
 const RANGOS_ACADEMIA = ["Academy", "Probationary", "Ascendido", "Suspendido",];
