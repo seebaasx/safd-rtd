@@ -5,7 +5,7 @@ import {
   LogIn, LayoutDashboard, ShieldCheck, ChevronLeft, MessageSquare, 
   Send, User, Lock, BarChart3, Clock, Award, ChevronDown, 
   Activity, TrendingUp, BookOpen, FileText, ExternalLink, 
-  ThumbsUp, ThumbsDown, UserCheck, Calendar 
+  ThumbsUp, ThumbsDown, UserCheck, Calendar
 } from 'lucide-react';
 
 // --- CONFIGURACIÓN SUPABASE ---
