@@ -3,19 +3,14 @@ import {
   Users, LogOut, Flame, ShieldCheck, User, BarChart3, BookOpen, 
   FileText, ExternalLink, Activity, X, ChevronLeft, MessageSquare, 
   Send, Clock, Calendar, ThumbsUp, ThumbsDown, Edit2, Check, ChevronRight,
-  TrendingUp, CheckCircle2, AlertCircle, Plus, Trash2, INFO
+  TrendingUp, CheckCircle2, AlertCircle, Plus, Trash2
 } from 'lucide-react';
 
 const supabaseUrl = 'https://bwisxczbkjlxyunpqqld.supabase.co'; 
 const supabaseKey = 'sb_publishable_MEosBztTd-5Ot5Rb-jhaHg_BEeiWZ19';
 
-// --- CONFIGURACIÓN DE ACCESO Y RANGOS ---
 const ADMIN_EMAILS = ["iris@safd.com", "blakecassidy@safd.com"]; 
-const USER_ROLES = {
-  "iris@safd.com": "JEFA DE BATALLÓN",
-  "blakecassidy@safd.com": "Teniente",
-};
-
+const USER_ROLES = { "iris@safd.com": "JEFA DE BATALLÓN", "blakecassidy@safd.com": "Teniente" };
 const RANGOS_ACADEMIA = ["Academy", "Probationary", "Ascendido", "Suspendido"];
 
 export default function App() {
@@ -29,7 +24,6 @@ export default function App() {
   const [observations, setObservations] = useState([]);
   const [newObs, setNewObs] = useState('');
   
-  // Modales Admin
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newStudentName, setNewStudentName] = useState('');
   const [isResModalOpen, setIsResModalOpen] = useState(false);
@@ -62,12 +56,7 @@ export default function App() {
     document.body.appendChild(script);
   }, []);
 
-  useEffect(() => {
-    if (!session) {
-      const timer = setInterval(() => setCurrentSlide(prev => (prev + 1) % slides.length), 5000);
-      return () => clearInterval(timer);
-    }
-  }, [session]);
+  useEffect(() => { if (!session) { const timer = setInterval(() => setCurrentSlide(prev => (prev + 1) % slides.length), 5000); return () => clearInterval(timer); } }, [session]);
 
   const instructorInfo = useMemo(() => {
     if (!session?.user?.email) return { name: "INVITADO", rango: "VISITANTE", fullTag: "[VISITANTE] INVITADO" };
@@ -77,9 +66,28 @@ export default function App() {
     return { name, rango, fullTag: `[${rango}] ${name}` };
   }, [session]);
 
-  const isAdmin = useMemo(() => {
-    return session?.user?.email && ADMIN_EMAILS.some(e => e.toLowerCase() === session.user.email.toLowerCase());
-  }, [session]);
+  const isAdmin = useMemo(() => session?.user?.email && ADMIN_EMAILS.some(e => e.toLowerCase() === session.user.email.toLowerCase()), [session]);
+
+  // --- LÓGICA DE CÁLCULO DE RENDIMIENTO DINÁMICO ---
+  const academicPerformance = useMemo(() => {
+    if (!selectedStudent) return 0;
+    const skills = ['actitud', 'mando', 'interna', 'radio', 'primeros_aux', 'excarcelacion_hab', 'incendios_hab'];
+    const academy = ['asis_radio', 'asis_auxilios', 'asis_incendios', 'asis_excarcelacion'];
+    
+    let points = 0;
+    let totalMax = (skills.length * 2) + academy.length; // Max puntos posibles
+
+    skills.forEach(s => {
+      if (selectedStudent[s] === 'aprendido') points += 2;
+      else if (selectedStudent[s] === 'cursando') points += 1;
+    });
+
+    academy.forEach(a => {
+      if (selectedStudent[a] === 'realizado') points += 1;
+    });
+
+    return Math.round((points / totalMax) * 100);
+  }, [selectedStudent]);
 
   async function fetchAllData(client = supabase) {
     if (!client) return;
@@ -93,29 +101,8 @@ export default function App() {
     if (selectedStudent && supabase) {
       supabase.from('observations').select('*').eq('student_id', selectedStudent.id).order('created_at', { ascending: true })
         .then(({ data }) => setObservations(data || []));
-      setTempHorario(selectedStudent.horario || 'Mañana / Tarde');
     }
   }, [selectedStudent, supabase]);
-
-  const deleteStudent = async (id, e) => {
-    e.stopPropagation();
-    if (!window.confirm("¿ELIMINAR ALUMNO PERMANENTEMENTE?")) return;
-    await supabase.from('students').delete().eq('id', id);
-    fetchAllData();
-  };
-
-  const deleteResource = async (id, e) => {
-    e.stopPropagation();
-    if (!window.confirm("¿ELIMINAR ESTE RECURSO?")) return;
-    await supabase.from('resources').delete().eq('id', id);
-    fetchAllData();
-  };
-
-  const deleteObservation = async (id) => {
-    if (!window.confirm("¿BORRAR COMENTARIO?")) return;
-    await supabase.from('observations').delete().eq('id', id);
-    setObservations(observations.filter(o => o.id !== id));
-  };
 
   const updateStudentData = async (column, value) => {
     if (!supabase || !selectedStudent) return;
@@ -131,20 +118,49 @@ export default function App() {
     fetchAllData();
   };
 
+  const handleCreateResource = async (e) => {
+    e.preventDefault();
+    if (!newRes.title || !newRes.url) return;
+    // CORRECCIÓN: Ahora sí enviamos la descripción a Supabase
+    const { error } = await supabase.from('resources').insert([{
+      title: newRes.title,
+      url: newRes.url,
+      description: newRes.description
+    }]);
+    if (!error) {
+      setNewRes({ title: '', url: '', description: '' }); 
+      setIsResModalOpen(false); 
+      fetchAllData();
+    } else {
+      alert("Error al guardar: " + error.message);
+    }
+  };
+
+  const deleteResource = async (id, e) => {
+    e.stopPropagation();
+    if (!window.confirm("¿ELIMINAR RECURSO?")) return;
+    await supabase.from('resources').delete().eq('id', id);
+    fetchAllData();
+  };
+
+  const deleteStudent = async (id, e) => {
+    e.stopPropagation();
+    if (!window.confirm("¿ELIMINAR ALUMNO?")) return;
+    await supabase.from('students').delete().eq('id', id);
+    fetchAllData();
+  };
+
+  const deleteObservation = async (id) => {
+    if (!window.confirm("¿BORRAR COMENTARIO?")) return;
+    await supabase.from('observations').delete().eq('id', id);
+    setObservations(observations.filter(o => o.id !== id));
+  };
+
   const handleCreateStudent = async (e) => {
     e.preventDefault();
     if (!newStudentName.trim()) return;
     await supabase.from('students').insert([{ name: newStudentName, rango: 'Academy', horario: 'Mañana / Tarde' }]);
     setNewStudentName(''); setIsModalOpen(false); fetchAllData();
-  };
-
-  const handleCreateResource = async (e) => {
-    e.preventDefault();
-    if (!newRes.title || !newRes.url) return;
-    await supabase.from('resources').insert([newRes]);
-    setNewRes({ title: '', url: '', description: '' }); 
-    setIsResModalOpen(false); 
-    fetchAllData();
   };
 
   const sendObservation = async () => {
@@ -175,9 +191,9 @@ export default function App() {
               <p className="text-red-600 font-black italic mb-12 tracking-[0.5em] uppercase text-sm md:text-xl">{slide.subtitle}</p>
               <div className="w-full max-w-md bg-white/5 border border-white/10 rounded-[3rem] p-10 backdrop-blur-2xl shadow-2xl">
                 <form onSubmit={handleLogin} className="space-y-6 text-center">
-                  <input type="email" placeholder="EMAIL" className="w-full bg-black/40 border border-white/10 rounded-2xl py-4 px-6 text-white italic font-bold outline-none focus:border-red-600" value={emailInput} onChange={e => setEmailInput(e.target.value)} required />
-                  <input type="password" placeholder="CÓDIGO" className="w-full bg-black/40 border border-white/10 rounded-2xl py-4 px-6 text-white italic font-bold outline-none focus:border-red-600" value={passInput} onChange={e => setPassInput(e.target.value)} required />
-                  <button type="submit" className="w-full bg-red-600 py-5 rounded-2xl font-black uppercase text-[10px] text-white">AUTENTICAR</button>
+                  <input type="email" placeholder="EMAIL" className="w-full bg-black/40 border border-white/10 rounded-2xl py-4 px-6 text-white italic font-bold outline-none focus:border-red-600 transition-all" value={emailInput} onChange={e => setEmailInput(e.target.value)} required />
+                  <input type="password" placeholder="CÓDIGO" className="w-full bg-black/40 border border-white/10 rounded-2xl py-4 px-6 text-white italic font-bold outline-none focus:border-red-600 transition-all" value={passInput} onChange={e => setPassInput(e.target.value)} required />
+                  <button type="submit" className="w-full bg-red-600 py-5 rounded-2xl font-black uppercase tracking-widest text-[10px] text-white hover:bg-red-500 transition-all">AUTENTICAR</button>
                 </form>
               </div>
             </div>
@@ -190,18 +206,18 @@ export default function App() {
   return (
     <div className="min-h-screen bg-[#050505] text-white flex flex-col md:flex-row font-sans relative">
       <div className="fixed inset-0 pointer-events-none z-0">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_30%,_rgba(220,38,38,0.05)_0%,_transparent_50%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_30%,_rgba(220,38,38,0.08)_0%,_transparent_50%)]" />
         <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10" />
       </div>
 
       <aside className="w-full md:w-24 bg-black/40 border-r border-white/10 flex flex-col items-center py-10 h-screen sticky top-0 z-50 backdrop-blur-xl">
         <img src="https://r2.fivemanage.com/rlMpa4HCjCLM3vQVrxiNo/RTD.png" className="w-14 h-14 object-contain mb-16 drop-shadow-xl" alt="Logo" />
         <nav className="flex md:flex-col gap-8">
-          <button onClick={() => { setActiveTab('alumnos'); setSelectedStudent(null); }} className={`p-4 rounded-2xl transition-all ${activeTab === 'alumnos' ? 'bg-red-600 text-white shadow-xl' : 'text-zinc-600'}`}><Users /></button>
-          <button onClick={() => setActiveTab('progreso')} className={`p-4 rounded-2xl transition-all ${activeTab === 'progreso' ? 'bg-red-600 text-white shadow-xl' : 'text-zinc-600'}`}><BarChart3 /></button>
-          <button onClick={() => setActiveTab('recursos')} className={`p-4 rounded-2xl transition-all ${activeTab === 'recursos' ? 'bg-red-600 text-white shadow-xl' : 'text-zinc-600'}`}><BookOpen /></button>
+          <button onClick={() => { setActiveTab('alumnos'); setSelectedStudent(null); }} className={`p-4 rounded-2xl transition-all ${activeTab === 'alumnos' ? 'bg-red-600 text-white shadow-xl shadow-red-600/10' : 'text-zinc-600'}`}><Users /></button>
+          <button onClick={() => setActiveTab('progreso')} className={`p-4 rounded-2xl transition-all ${activeTab === 'progreso' ? 'bg-red-600 text-white shadow-xl shadow-red-600/10' : 'text-zinc-600'}`}><BarChart3 /></button>
+          <button onClick={() => setActiveTab('recursos')} className={`p-4 rounded-2xl transition-all ${activeTab === 'recursos' ? 'bg-red-600 text-white shadow-xl shadow-red-600/10' : 'text-zinc-600'}`}><BookOpen /></button>
         </nav>
-        <button onClick={() => { supabase.auth.signOut(); window.localStorage.clear(); window.location.reload(); }} className="mt-auto p-4 text-zinc-800 hover:text-red-600"><LogOut /></button>
+        <button onClick={() => { supabase.auth.signOut(); window.localStorage.clear(); window.location.reload(); }} className="mt-auto p-4 text-zinc-800 hover:text-red-600 transition-all"><LogOut /></button>
       </aside>
 
       <main className="flex-1 p-6 md:p-16 overflow-y-auto relative z-10">
@@ -221,35 +237,34 @@ export default function App() {
         </header>
 
         {selectedStudent ? (
-          /* --- VISTA EXPEDIENTE ALUMNO (INALTERADA) --- */
           <div className="space-y-12 pb-20 animate-in fade-in duration-500">
-            <button onClick={() => setSelectedStudent(null)} className="text-zinc-600 hover:text-white text-[9px] font-black uppercase tracking-widest flex items-center gap-2 mb-12 bg-white/5 px-6 py-3 rounded-xl border border-white/5 backdrop-blur-md shadow-lg"><ChevronLeft className="w-4 h-4" /> VOLVER AL LISTADO</button>
+            <button onClick={() => setSelectedStudent(null)} className="text-zinc-600 hover:text-white text-[9px] font-black uppercase tracking-widest flex items-center gap-2 mb-12 bg-white/5 px-6 py-3 rounded-xl border border-white/5 backdrop-blur-md transition-all shadow-lg"><ChevronLeft className="w-4 h-4" /> VOLVER AL LISTADO</button>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                <div className="bg-white/5 border border-white/10 rounded-[3rem] p-10 backdrop-blur-md shadow-2xl">
                   <div className="flex justify-between items-center mb-6"><div className="text-zinc-600 text-[9px] font-black uppercase tracking-widest italic">Horarios de Formación</div><button onClick={() => isEditingHorario ? (updateStudentData('horario', tempHorario), setIsEditingHorario(false)) : setIsEditingHorario(true)}><Edit2 className="w-4 h-4 text-zinc-600" /></button></div>
                   {isEditingHorario ? <input className="bg-black/60 border border-white/10 text-white p-2 rounded w-full font-black uppercase outline-none focus:border-red-600" value={tempHorario} onChange={e => setTempHorario(e.target.value)} /> : <div className="text-xl font-black italic border-b border-zinc-800 pb-4 uppercase tracking-tighter">{selectedStudent.horario}</div>}
                </div>
-               <div className="bg-white/5 border border-white/10 rounded-[3rem] p-10 backdrop-blur-md">
+               <div className="bg-white/5 border border-white/10 rounded-[3rem] p-10 backdrop-blur-md shadow-2xl">
                   <div className="text-zinc-600 text-[9px] font-black uppercase tracking-widest mb-6">Rango Academia</div>
-                  <select className="bg-black/40 border border-white/10 text-white p-3 rounded-xl w-full font-black italic uppercase outline-none focus:border-red-600 cursor-pointer" value={selectedStudent.rango || "Academy"} onChange={(e) => updateStudentData('rango', e.target.value)}>{RANGOS_ACADEMIA.map(r => <option key={r} value={r} className="bg-zinc-900">{r.toUpperCase()}</option>)}</select>
+                  <select className="bg-black/40 border border-white/10 text-white p-3 rounded-xl w-full font-black italic uppercase outline-none focus:border-red-600 cursor-pointer transition-all" value={selectedStudent.rango || "Academy"} onChange={(e) => updateStudentData('rango', e.target.value)}>{RANGOS_ACADEMIA.map(r => <option key={r} value={r} className="bg-zinc-900">{r.toUpperCase()}</option>)}</select>
                </div>
-               <div className="bg-white/5 border border-white/10 rounded-[3rem] p-10 backdrop-blur-md">
-                  <div className="flex justify-between items-center mb-6"><span className="text-zinc-600 text-[9px] font-black uppercase tracking-widest italic">Aprobación Técnica</span><span className="text-red-600 font-black italic text-xl">43%</span></div>
-                  <div className="h-1.5 w-full bg-black/40 rounded-full overflow-hidden"><div className="bg-red-600 h-full w-[43%] shadow-[0_0_15px_rgba(220,38,38,0.5)] transition-all"></div></div>
+               <div className="bg-white/5 border border-white/10 rounded-[3rem] p-10 backdrop-blur-md shadow-2xl">
+                  <div className="flex justify-between items-center mb-6"><span className="text-zinc-600 text-[9px] font-black uppercase tracking-widest italic">Rendimiento Académico</span><span className="text-red-600 font-black italic text-xl">{academicPerformance}%</span></div>
+                  <div className="h-1.5 w-full bg-black/40 rounded-full overflow-hidden"><div className="bg-red-600 h-full shadow-[0_0_15px_rgba(220,38,38,0.5)] transition-all duration-700" style={{ width: `${academicPerformance}%` }}></div></div>
                </div>
             </div>
 
             <div className="bg-white/5 border border-white/10 rounded-[3rem] p-10 border-t-4 border-t-green-600 backdrop-blur-md shadow-2xl">
               <div className="text-zinc-300 text-[10px] font-black uppercase tracking-widest mb-10 flex items-center gap-2"><Calendar className="w-4 h-4 text-green-600" /> Días Academia</div>
               <table className="w-full text-left border-separate border-spacing-y-2">
-                <thead><tr className="text-zinc-600 text-[9px] font-black uppercase tracking-widest italic text-center"><th className="pb-4 text-left px-4">Módulo</th><th className="pb-4 text-right px-4">Estado de Sesión</th></tr></thead>
+                <thead><tr className="text-zinc-600 text-[9px] font-black uppercase tracking-widest italic"><th className="pb-4 text-left px-4">Módulo</th><th className="pb-4 text-right px-4">Estado de Sesión</th></tr></thead>
                 <tbody className="text-[10px] font-black uppercase italic">
                   {[ { key: 'asis_radio', label: 'RADIO & DISPATCH' }, { key: 'asis_auxilios', label: 'PRIMEROS AUXILIOS' }, { key: 'asis_incendios', label: 'INCENDIOS' }, { key: 'asis_excarcelacion', label: 'EXCARCELACIÓN' } ].map(mod => (
                     <tr key={mod.key} className="bg-black/20"><td className="py-5 px-4 text-zinc-400 text-left">{mod.label}</td>
                       <td className="py-5 text-right px-4"><div className="flex justify-end gap-4">
-                        <button onClick={() => updateStudentData(mod.key, 'realizado')} className={`px-6 py-2 rounded-xl border transition-all ${selectedStudent[mod.key] === 'realizado' ? 'bg-green-600 border-green-400 text-white shadow-lg' : 'bg-zinc-900 border-zinc-800 text-zinc-600'}`}>REALIZADO</button>
-                        <button onClick={() => updateStudentData(mod.key, 'no_realizado')} className={`px-6 py-2 rounded-xl border transition-all ${selectedStudent[mod.key] === 'no_realizado' ? 'bg-red-600 border-red-400 text-white shadow-lg' : 'bg-zinc-900 border-zinc-800 text-zinc-600'}`}>NO REALIZADO</button>
+                        <button onClick={() => updateStudentData(mod.key, 'realizado')} className={`px-6 py-2 rounded-xl border transition-all ${selectedStudent[mod.key] === 'realizado' ? 'bg-green-600 border-green-400 text-white shadow-lg shadow-green-500/20' : 'bg-zinc-900 border-zinc-800 text-zinc-600'}`}>REALIZADO</button>
+                        <button onClick={() => updateStudentData(mod.key, 'no_realizado')} className={`px-6 py-2 rounded-xl border transition-all ${selectedStudent[mod.key] === 'no_realizado' ? 'bg-red-600 border-red-400 text-white shadow-lg shadow-red-500/20' : 'bg-zinc-900 border-zinc-800 text-zinc-600'}`}>NO REALIZADO</button>
                       </div></td>
                     </tr>
                   ))}
@@ -263,13 +278,13 @@ export default function App() {
               ].map((skill) => (
                 <div key={skill.key} className="bg-white/5 border border-white/10 p-8 rounded-[2rem] flex flex-col md:flex-row justify-between md:items-center gap-6 backdrop-blur-md shadow-xl hover:border-red-600/30 transition-all">
                   <div><div className="font-black italic text-xl uppercase mb-2 tracking-tighter">{skill.label}</div><div className="text-[8px] font-black text-zinc-600 uppercase tracking-widest italic">{selectedStudent[skill.key] && selectedStudent[skill.key] !== 'no' ? `FIRMADO: ${selectedStudent[`${skill.key}_validador`]}` : 'Pte. Validación'}</div></div>
-                  <div className="flex gap-2">{['no', 'cursando', 'aprendido'].map(status => (<button key={status} onClick={() => updateStudentData(skill.key, status)} className={`px-6 py-2 rounded-xl text-[9px] font-black transition-all ${selectedStudent[skill.key] === status ? (status === 'aprendido' ? 'bg-green-600 text-white shadow-lg' : status === 'cursando' ? 'bg-yellow-600 text-white shadow-lg' : 'bg-zinc-700 text-white') : 'bg-black/20 text-zinc-600'}`}>{status.toUpperCase()}</button>))}</div>
+                  <div className="flex gap-2">{['no', 'cursando', 'aprendido'].map(status => (<button key={status} onClick={() => updateStudentData(skill.key, status)} className={`px-6 py-2 rounded-xl text-[9px] font-black transition-all ${selectedStudent[skill.key] === status ? (status === 'aprendido' ? 'bg-green-600 text-white shadow-lg shadow-green-600/20' : status === 'cursando' ? 'bg-yellow-600 text-white shadow-lg' : 'bg-zinc-700 text-white') : 'bg-black/20 text-zinc-600'}`}>{status.toUpperCase()}</button>))}</div>
                 </div>
               ))}
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-               <div className="bg-white/5 border border-white/10 rounded-[3rem] p-10 border-t-4 border-t-blue-600 backdrop-blur-md h-fit">
+               <div className="bg-white/5 border border-white/10 rounded-[3rem] p-10 border-t-4 border-t-blue-600 backdrop-blur-md h-fit shadow-2xl">
                   <div className="text-zinc-300 text-[10px] font-black uppercase tracking-widest mb-10 italic">Estado Final</div>
                   <div className="grid grid-cols-2 gap-4">
                      <button onClick={() => updateStudentData('voto_instructor', 'apto')} className={`p-8 bg-black/40 border rounded-3xl transition-all flex flex-col items-center gap-2 group ${selectedStudent.voto_instructor === 'apto' ? 'border-green-600 bg-green-600/10' : 'border-white/10 hover:border-green-600'}`}><ThumbsUp className={`w-6 h-6 ${selectedStudent.voto_instructor === 'apto' ? 'text-green-500' : 'text-zinc-700 group-hover:text-green-500'}`} /><span className="text-[9px] font-black uppercase">APTO</span></button>
@@ -280,36 +295,34 @@ export default function App() {
                   <div className="text-zinc-300 text-[10px] font-black uppercase tracking-widest mb-10 italic flex items-center gap-2"><MessageSquare className="w-4 h-4 text-red-600" /> Registro Seguimiento</div>
                   <div className="space-y-6 mb-12 max-h-[400px] overflow-y-auto pr-4 custom-scrollbar">
                      {observations.map(obs => (
-                       <div key={obs.id} className="bg-black/40 border border-white/5 rounded-3xl p-8 shadow-inner group relative">
+                       <div key={obs.id} className="bg-black/40 border border-white/5 rounded-3xl p-8 shadow-inner group relative hover:border-red-600/20 transition-all">
                           {isAdmin && <button onClick={() => deleteObservation(obs.id)} className="absolute top-6 right-6 text-zinc-700 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-all"><X className="w-4 h-4" /></button>}
-                          <div className="flex justify-between items-center mb-4 border-b border-white/5 pb-4"><div className="flex items-center gap-3 italic"><div className="w-1.5 h-1.5 bg-red-600 rounded-full animate-pulse shadow-md shadow-red-600/50"></div><span className="text-[10px] font-black text-white">{obs.instructor_name}</span></div><span className="text-[8px] text-zinc-700 font-black uppercase">5/5/2026</span></div>
+                          <div className="flex justify-between items-center mb-4 border-b border-white/5 pb-4"><div className="flex items-center gap-3 italic"><div className="w-1.5 h-1.5 bg-red-600 rounded-full animate-pulse shadow-md shadow-red-600/50"></div><span className="text-[10px] font-black text-white">{obs.instructor_name}</span></div><span className="text-[8px] text-zinc-700 font-black uppercase tracking-widest italic">5/5/2026</span></div>
                           <p className="pl-6 border-l-2 border-red-600/40 text-zinc-400 italic text-sm leading-relaxed">{obs.content}</p>
                        </div>
                      ))}
                   </div>
-                  <div className="bg-black/40 border border-white/10 rounded-[2.5rem] p-4 flex items-center gap-4 focus-within:border-red-600 transition-all shadow-inner shadow-black">
-                     <textarea value={newObs} onChange={e => setNewObs(e.target.value)} placeholder="Redactar seguimiento..." className="bg-transparent flex-1 outline-none p-4 text-zinc-300 resize-none h-24 text-sm font-medium italic" />
+                  <div className="bg-black/40 border border-white/10 rounded-[2.5rem] p-4 flex items-center gap-4 focus-within:border-red-600 transition-all shadow-inner">
+                     <textarea value={newObs} onChange={e => setNewObs(e.target.value)} placeholder="Redactar seguimiento táctico..." className="bg-transparent flex-1 outline-none p-4 text-zinc-300 resize-none h-24 text-sm font-medium italic placeholder:text-zinc-800" />
                      <button onClick={sendObservation} className="bg-red-600 p-5 rounded-full shadow-lg shadow-red-600/40 hover:scale-110 active:scale-95 transition-all text-white"><Send className="w-6 h-6" /></button>
                   </div>
                </div>
             </div>
           </div>
         ) : (
-          /* --- RENDERIZADO DE PESTAÑAS (ALUMNOS/PROGRESO/BIBLIOTECA) --- */
           <div className="animate-in fade-in duration-700">
             {activeTab === 'alumnos' && (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                 {students.map(s => (
                   <div key={s.id} onClick={() => setSelectedStudent(s)} className="group bg-white/5 border border-white/10 p-12 rounded-[3.5rem] hover:border-red-600 transition-all cursor-pointer relative shadow-2xl overflow-hidden backdrop-blur-sm">
                     {isAdmin && <button onClick={(e) => deleteStudent(s.id, e)} className="absolute top-8 right-8 text-zinc-700 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-all z-20"><Trash2 className="w-5 h-5" /></button>}
-                    <div className="w-16 h-16 bg-white/5 rounded-2xl flex items-center justify-center group-hover:bg-red-600 transition-all mb-10 shadow-inner shadow-black/50"><User className="text-zinc-600 group-hover:text-white" /></div>
+                    <div className="w-14 h-14 bg-white/5 rounded-2xl flex items-center justify-center group-hover:bg-red-600 transition-all mb-10 shadow-inner shadow-black/50"><User className="text-zinc-600 group-hover:text-white" /></div>
                     <h3 className="text-3xl font-black italic uppercase tracking-tighter mb-4 leading-none">{s.name}</h3>
                     <div className="flex justify-between items-center"><p className="text-[9px] font-black text-zinc-700 uppercase tracking-widest group-hover:text-red-500 transition-all">{s.rango || 'Academy'}</p><ChevronRight className="w-4 h-4 text-zinc-800 group-hover:text-red-600 transition-all" /></div>
                   </div>
                 ))}
               </div>
             )}
-            
             {activeTab === 'progreso' && (
               <div className="space-y-12">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -319,18 +332,15 @@ export default function App() {
                 </div>
               </div>
             )}
-
             {activeTab === 'recursos' && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                 {resources.map(r => (
-                  <div key={r.id} className="group bg-white/5 border border-white/10 p-10 rounded-[3rem] hover:border-blue-600/50 transition-all relative shadow-xl overflow-hidden shadow-black/20 backdrop-blur-sm flex flex-col h-full">
+                  <div key={r.id} className="group bg-white/5 border border-white/10 p-10 rounded-[3.5rem] hover:border-blue-600/50 transition-all relative shadow-xl overflow-hidden backdrop-blur-sm flex flex-col h-full">
                     {isAdmin && <button onClick={(e) => deleteResource(r.id, e)} className="absolute top-8 right-8 text-zinc-700 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-all z-20"><Trash2 className="w-5 h-5" /></button>}
-                    <div className="flex items-start justify-between mb-8">
-                      <div className="w-14 h-14 bg-blue-600/20 rounded-2xl flex items-center justify-center"><FileText className="text-blue-500 w-7 h-7" /></div>
-                    </div>
+                    <div className="w-14 h-14 bg-blue-600/20 rounded-2xl flex items-center justify-center mb-8"><FileText className="text-blue-500 w-7 h-7" /></div>
                     <h3 className="text-3xl font-black italic uppercase tracking-tighter mb-4 leading-tight">{r.title}</h3>
-                    <p className="text-zinc-500 italic text-sm mb-10 line-clamp-3 flex-1">{r.description || "Sin descripción disponible para este recurso."}</p>
-                    <a href={r.url} target="_blank" rel="noreferrer" className="inline-flex h-14 items-center justify-center px-10 bg-black/40 border border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest text-zinc-500 hover:text-white hover:bg-blue-600 transition-all shadow-xl">ABRIR DOCUMENTO</a>
+                    <p className="text-zinc-500 italic text-sm mb-10 line-clamp-4 flex-1">{r.description || "Sin descripción disponible."}</p>
+                    <a href={r.url} target="_blank" rel="noreferrer" className="inline-flex h-14 items-center justify-center px-10 bg-black/40 border border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest text-zinc-400 hover:text-white hover:bg-blue-600 transition-all shadow-xl">ABRIR DOCUMENTO</a>
                   </div>
                 ))}
               </div>
@@ -338,28 +348,27 @@ export default function App() {
           </div>
         )}
 
-        {/* MODALES (ALUMNOS Y RECURSOS) */}
         {isModalOpen && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/90 backdrop-blur-xl">
             <div className="bg-[#0a0a0a] border border-white/10 w-full max-w-xl rounded-[3.5rem] p-16 shadow-2xl text-white">
               <div className="flex justify-between items-center mb-12"><h2 className="text-4xl font-black italic uppercase tracking-tighter">Alta Aspirante</h2><button onClick={() => setIsModalOpen(false)} className="text-zinc-700 hover:text-white"><X className="w-8 h-8" /></button></div>
               <form onSubmit={handleCreateStudent} className="space-y-10">
                 <input type="text" className="w-full bg-black/40 border border-white/10 rounded-2xl py-6 px-10 outline-none focus:border-red-600 transition-all font-black uppercase italic text-white text-xl" value={newStudentName} onChange={e => setNewStudentName(e.target.value)} placeholder="NOMBRE COMPLETO" required autoFocus />
-                <button type="submit" className="w-full bg-red-600 py-7 rounded-2xl font-black uppercase text-[11px] shadow-2xl shadow-red-600/20 text-white active:scale-95 transition-all">REGISTRAR EN RTD</button>
+                <button type="submit" className="w-full bg-red-600 py-7 rounded-2xl font-black uppercase text-[11px] shadow-2xl shadow-red-600/20 text-white">REGISTRAR EN RTD</button>
               </form>
             </div>
           </div>
         )}
 
         {isResModalOpen && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/90 backdrop-blur-xl">
-            <div className="bg-[#0a0a0a] border border-white/10 w-full max-w-xl rounded-[3.5rem] p-16 shadow-2xl text-white">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/90 backdrop-blur-xl text-white">
+            <div className="bg-[#0a0a0a] border border-white/10 w-full max-w-xl rounded-[3.5rem] p-16 shadow-2xl">
               <div className="flex justify-between items-center mb-12"><h2 className="text-4xl font-black italic uppercase tracking-tighter">Nuevo Recurso</h2><button onClick={() => setIsResModalOpen(false)} className="text-zinc-700 hover:text-white"><X className="w-8 h-8" /></button></div>
               <form onSubmit={handleCreateResource} className="space-y-6">
                 <input type="text" className="w-full bg-black/40 border border-white/10 rounded-2xl py-5 px-8 text-white font-black italic uppercase outline-none focus:border-blue-600" value={newRes.title} onChange={e => setNewRes({...newRes, title: e.target.value})} placeholder="TÍTULO" required />
-                <textarea className="w-full bg-black/40 border border-white/10 rounded-2xl py-5 px-8 text-white font-black italic outline-none focus:border-blue-600 h-32 resize-none" value={newRes.description} onChange={e => setNewRes({...newRes, description: e.target.value})} placeholder="BREVE RESUMEN DINÁMICO..." required />
+                <textarea className="w-full bg-black/40 border border-white/10 rounded-2xl py-5 px-8 text-white font-black italic outline-none focus:border-blue-600 h-32 resize-none" value={newRes.description} onChange={e => setNewRes({...newRes, description: e.target.value})} placeholder="RESUMEN DINÁMICO..." required />
                 <input type="url" className="w-full bg-black/40 border border-white/10 rounded-2xl py-5 px-8 text-white font-black italic outline-none focus:border-blue-600" value={newRes.url} onChange={e => setNewRes({...newRes, url: e.target.value})} placeholder="URL (DRIVE/DOCS)" required />
-                <button type="submit" className="w-full bg-blue-600 py-7 rounded-2xl font-black uppercase text-[11px] text-white transition-all shadow-lg shadow-blue-600/20">PUBLICAR EN BIBLIOTECA</button>
+                <button type="submit" className="w-full bg-blue-600 py-7 rounded-2xl font-black uppercase text-[11px] text-white">PUBLICAR</button>
               </form>
             </div>
           </div>
