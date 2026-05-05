@@ -176,7 +176,13 @@ export default function App() {
       </div>
 
       <aside className="w-full md:w-24 bg-black/40 border-r border-white/10 flex flex-col items-center py-10 h-screen sticky top-0 z-50 backdrop-blur-xl">
-        <div className="mb-16 bg-red-600 p-2.5 rounded-xl shadow-lg shadow-red-600/20"><Flame className="w-6 h-6 text-white" /></div>
+        <div className="mb-16">
+  <img 
+    src="https://r2.fivemanage.com/rlMpa4HCjCLM3vQVrxiNo/RTD.png" 
+    alt="Logo" 
+    className="w-14 h-14 object-contain drop-shadow-[0_0_8px_rgba(220,38,38,0.5)]" 
+  />
+</div>
         <nav className="flex md:flex-col gap-8">
           <button disabled={!!selectedStudent} onClick={() => { setActiveTab('alumnos'); setSelectedStudent(null); }} className={`p-4 rounded-2xl transition-all ${selectedStudent ? 'opacity-20 cursor-not-allowed' : 'hover:bg-white/5'} ${activeTab === 'alumnos' ? 'bg-red-600 text-white shadow-xl shadow-red-600/10' : 'text-zinc-600 hover:text-white'}`}><Users className="w-6 h-6" /></button>
           <button disabled={!!selectedStudent} onClick={() => setActiveTab('progreso')} className={`p-4 rounded-2xl transition-all ${selectedStudent ? 'opacity-20 cursor-not-allowed' : 'hover:bg-white/5'} ${activeTab === 'progreso' ? 'bg-red-600 text-white shadow-xl shadow-red-600/10' : 'text-zinc-600 hover:text-white'}`}><BarChart3 className="w-6 h-6" /></button>
