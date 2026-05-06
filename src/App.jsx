@@ -9,8 +9,8 @@ import {
 const supabaseUrl = 'https://bwisxczbkjlxyunpqqld.supabase.co'; 
 const supabaseKey = 'sb_publishable_MEosBztTd-5Ot5Rb-jhaHg_BEeiWZ19';
 
-const ADMIN_EMAILS = ["iris@safd.com", "blakecassidy@safd.com"]; 
-const USER_ROLES = { "iris@safd.com": "JEFA DE BATALLÓN", "blakecassidy@safd.com": "Teniente" };
+const ADMIN_EMAILS = ["iris@safd.com"]; 
+const USER_ROLES = { "iris@safd.com": "JEFA DE BATALLÓN", "blakecassidy@safd.com": "Teniente" , "nolanlevine@safd.com": "Capitán" , "lucablake@safd.com": "Teniente", "alexcampbell@safd.com": "Specialist Firefighter", "jinahpark@safd.com": "Sargento", "paulnystrom@safd.com": "Teniente"};
 const RANGOS_ACADEMIA = ["Academy", "Probationary", "Ascendido", "Suspendido"];
 
 export default function App() {
