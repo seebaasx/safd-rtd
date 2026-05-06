@@ -19,7 +19,8 @@ const USER_ROLES = {
   "lucablake@safd.com": "Teniente", 
   "alexcampbell@safd.com": "Specialist Firefighter", 
   "jinahpark@safd.com": "Sargento", 
-  "paulnystrom@safd.com": "Teniente" 
+  "paulnystrom@safd.com": "Teniente",
+  "samantavalentine@safd.com": "Sargento",
 };
 const RANGOS_ACADEMIA = ["Academy", "Probationary", "Ascendido", "Suspendido"];
 
