@@ -9,10 +9,11 @@ import {
 const supabaseUrl = 'https://bwisxczbkjlxyunpqqld.supabase.co'; 
 const supabaseKey = 'sb_publishable_MEosBztTd-5Ot5Rb-jhaHg_BEeiWZ19';
 
-const ADMIN_EMAILS = ["iris@safd.com"]; 
+const ADMIN_EMAILS = ["iris@safd.com", "carterslade@safd.com"]; 
 // LÍNEA 13 CORREGIDA (Sin espacios extras y correos exactos)
 const USER_ROLES = { 
   "iris@safd.com": "JEFA DE BATALLÓN", 
+  "carterslade@safd.com": "Capitán",
   "blakecassidy@safd.com": "Teniente", 
   "nolanlevine@safd.com": "Capitán", 
   "lucablake@safd.com": "Teniente", 
