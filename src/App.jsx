@@ -10,7 +10,16 @@ const supabaseUrl = 'https://bwisxczbkjlxyunpqqld.supabase.co';
 const supabaseKey = 'sb_publishable_MEosBztTd-5Ot5Rb-jhaHg_BEeiWZ19';
 
 const ADMIN_EMAILS = ["iris@safd.com"]; 
-const USER_ROLES = { "iris@safd.com": "JEFA DE BATALLÓN", "blakecassidy@safd.com": "Teniente" , "nolanlevine@safd.com": "Capitán" , "lucablake@safd.com": "Teniente", "alexcampbell@safd.com": "Specialist Firefighter", "jinahpark@safd.com": "Sargento", "paulnystrom@safd.com": "Teniente"};
+// LÍNEA 13 CORREGIDA (Sin espacios extras y correos exactos)
+const USER_ROLES = { 
+  "iris@safd.com": "JEFA DE BATALLÓN", 
+  "blakecassidy@safd.com": "Teniente", 
+  "nolanlevine@safd.com": "Capitán", 
+  "lucablake@safd.com": "Teniente", 
+  "alexcampbell@safd.com": "Specialist Firefighter", 
+  "jinahpark@safd.com": "Sargento", 
+  "paulnystrom@safd.com": "Teniente" 
+};
 const RANGOS_ACADEMIA = ["Academy", "Probationary", "Ascendido", "Suspendido"];
 
 export default function App() {
@@ -60,32 +69,28 @@ export default function App() {
 
   const instructorInfo = useMemo(() => {
     if (!session?.user?.email) return { name: "INVITADO", rango: "VISITANTE", fullTag: "[VISITANTE] INVITADO" };
-    const email = session.user.email.toLowerCase();
-    const name = email.split('@')[0].toUpperCase();
-    const rango = USER_ROLES[email] || "INSTRUCTOR";
+    // Normalizamos el email para que no haya espacios ni mayúsculas que rompan la búsqueda
+    const emailLower = session.user.email.toLowerCase().trim();
+    const name = emailLower.split('@')[0].toUpperCase();
+    const rango = USER_ROLES[emailLower] || "INSTRUCTOR";
     return { name, rango, fullTag: `[${rango}] ${name}` };
   }, [session]);
 
-  const isAdmin = useMemo(() => session?.user?.email && ADMIN_EMAILS.some(e => e.toLowerCase() === session.user.email.toLowerCase()), [session]);
+  const isAdmin = useMemo(() => session?.user?.email && ADMIN_EMAILS.some(e => e.toLowerCase().trim() === session.user.email.toLowerCase().trim()), [session]);
 
-  // --- LÓGICA DE CÁLCULO DE RENDIMIENTO DINÁMICO ---
   const academicPerformance = useMemo(() => {
     if (!selectedStudent) return 0;
     const skills = ['actitud', 'mando', 'interna', 'radio', 'primeros_aux', 'excarcelacion_hab', 'incendios_hab'];
     const academy = ['asis_radio', 'asis_auxilios', 'asis_incendios', 'asis_excarcelacion'];
-    
     let points = 0;
-    let totalMax = (skills.length * 2) + academy.length; // Max puntos posibles
-
+    let totalMax = (skills.length * 2) + academy.length; 
     skills.forEach(s => {
       if (selectedStudent[s] === 'aprendido') points += 2;
       else if (selectedStudent[s] === 'cursando') points += 1;
     });
-
     academy.forEach(a => {
       if (selectedStudent[a] === 'realizado') points += 1;
     });
-
     return Math.round((points / totalMax) * 100);
   }, [selectedStudent]);
 
@@ -111,7 +116,7 @@ export default function App() {
     const skills = ['actitud', 'mando', 'interna', 'radio', 'primeros_aux', 'excarcelacion_hab', 'incendios_hab'];
     if (skills.includes(column)) {
       updatePayload[`${column}_validador`] = finalValue ? instructorInfo.fullTag : null;
-      updatePayload[`${column}_fecha`] = finalValue ? "5/5/2026" : null;
+      updatePayload[`${column}_fecha`] = "5/5/2026";
     }
     await supabase.from('students').update(updatePayload).eq('id', selectedStudent.id);
     setSelectedStudent({ ...selectedStudent, ...updatePayload });
@@ -121,7 +126,6 @@ export default function App() {
   const handleCreateResource = async (e) => {
     e.preventDefault();
     if (!newRes.title || !newRes.url) return;
-    // CORRECCIÓN: Ahora sí enviamos la descripción a Supabase
     const { error } = await supabase.from('resources').insert([{
       title: newRes.title,
       url: newRes.url,
@@ -131,29 +135,30 @@ export default function App() {
       setNewRes({ title: '', url: '', description: '' }); 
       setIsResModalOpen(false); 
       fetchAllData();
-    } else {
-      alert("Error al guardar: " + error.message);
     }
   };
 
   const deleteResource = async (id, e) => {
     e.stopPropagation();
-    if (!window.confirm("¿ELIMINAR RECURSO?")) return;
-    await supabase.from('resources').delete().eq('id', id);
-    fetchAllData();
+    if (window.confirm("¿BORRAR RECURSO?")) {
+      await supabase.from('resources').delete().eq('id', id);
+      fetchAllData();
+    }
   };
 
   const deleteStudent = async (id, e) => {
     e.stopPropagation();
-    if (!window.confirm("¿ELIMINAR ALUMNO?")) return;
-    await supabase.from('students').delete().eq('id', id);
-    fetchAllData();
+    if (window.confirm("¿ELIMINAR ALUMNO?")) {
+      await supabase.from('students').delete().eq('id', id);
+      fetchAllData();
+    }
   };
 
   const deleteObservation = async (id) => {
-    if (!window.confirm("¿BORRAR COMENTARIO?")) return;
-    await supabase.from('observations').delete().eq('id', id);
-    setObservations(observations.filter(o => o.id !== id));
+    if (window.confirm("¿BORRAR COMENTARIO?")) {
+      await supabase.from('observations').delete().eq('id', id);
+      setObservations(observations.filter(o => o.id !== id));
+    }
   };
 
   const handleCreateStudent = async (e) => {
@@ -213,9 +218,9 @@ export default function App() {
       <aside className="w-full md:w-24 bg-black/40 border-r border-white/10 flex flex-col items-center py-10 h-screen sticky top-0 z-50 backdrop-blur-xl">
         <img src="https://r2.fivemanage.com/rlMpa4HCjCLM3vQVrxiNo/RTD.png" className="w-14 h-14 object-contain mb-16 drop-shadow-xl" alt="Logo" />
         <nav className="flex md:flex-col gap-8">
-          <button onClick={() => { setActiveTab('alumnos'); setSelectedStudent(null); }} className={`p-4 rounded-2xl transition-all ${activeTab === 'alumnos' ? 'bg-red-600 text-white shadow-xl shadow-red-600/10' : 'text-zinc-600'}`}><Users /></button>
-          <button onClick={() => setActiveTab('progreso')} className={`p-4 rounded-2xl transition-all ${activeTab === 'progreso' ? 'bg-red-600 text-white shadow-xl shadow-red-600/10' : 'text-zinc-600'}`}><BarChart3 /></button>
-          <button onClick={() => setActiveTab('recursos')} className={`p-4 rounded-2xl transition-all ${activeTab === 'recursos' ? 'bg-red-600 text-white shadow-xl shadow-red-600/10' : 'text-zinc-600'}`}><BookOpen /></button>
+          <button onClick={() => { setActiveTab('alumnos'); setSelectedStudent(null); }} className={`p-4 rounded-2xl transition-all ${activeTab === 'alumnos' ? 'bg-red-600 text-white shadow-xl shadow-red-600/10' : 'text-zinc-600 hover:text-white'}`}><Users /></button>
+          <button onClick={() => setActiveTab('progreso')} className={`p-4 rounded-2xl transition-all ${activeTab === 'progreso' ? 'bg-red-600 text-white shadow-xl shadow-red-600/10' : 'text-zinc-600 hover:text-white'}`}><BarChart3 /></button>
+          <button onClick={() => setActiveTab('recursos')} className={`p-4 rounded-2xl transition-all ${activeTab === 'recursos' ? 'bg-red-600 text-white shadow-xl shadow-red-600/10' : 'text-zinc-600 hover:text-white'}`}><BookOpen /></button>
         </nav>
         <button onClick={() => { supabase.auth.signOut(); window.localStorage.clear(); window.location.reload(); }} className="mt-auto p-4 text-zinc-800 hover:text-red-600 transition-all"><LogOut /></button>
       </aside>
@@ -354,7 +359,7 @@ export default function App() {
               <div className="flex justify-between items-center mb-12"><h2 className="text-4xl font-black italic uppercase tracking-tighter">Alta Aspirante</h2><button onClick={() => setIsModalOpen(false)} className="text-zinc-700 hover:text-white"><X className="w-8 h-8" /></button></div>
               <form onSubmit={handleCreateStudent} className="space-y-10">
                 <input type="text" className="w-full bg-black/40 border border-white/10 rounded-2xl py-6 px-10 outline-none focus:border-red-600 transition-all font-black uppercase italic text-white text-xl" value={newStudentName} onChange={e => setNewStudentName(e.target.value)} placeholder="NOMBRE COMPLETO" required autoFocus />
-                <button type="submit" className="w-full bg-red-600 py-7 rounded-2xl font-black uppercase text-[11px] shadow-2xl shadow-red-600/20 text-white">REGISTRAR EN RTD</button>
+                <button type="submit" className="w-full bg-red-600 py-7 rounded-2xl font-black uppercase text-[11px] shadow-2xl shadow-red-600/20 text-white active:scale-95 transition-all">REGISTRAR EN RTD</button>
               </form>
             </div>
           </div>
