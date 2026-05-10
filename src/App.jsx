@@ -132,21 +132,31 @@ export default function App() {
     e.preventDefault();
     if (!newRes.title || !newRes.url) return;
 
-    // BYPASS: Unimos título y descripción para evitar usar la columna 'description' que da error 400
-    const combinedTitle = `${newRes.title} || ${newRes.description}`;
-
-    const { error } = await supabase.from('resources').insert([{
-      title: combinedTitle,
+    // SISTEMA DE BYPASS DE SEGURIDAD
+    // Intentamos guardar normal, si falla porque la columna no existe, usamos el truco del título combinado
+    const { error: initialError } = await supabase.from('resources').insert([{
+      title: newRes.title,
+      description: newRes.description,
       url: newRes.url
     }]);
 
-    if (!error) {
-      setNewRes({ title: '', url: '', description: '' }); 
-      setIsResModalOpen(false); 
-      fetchAllData();
-    } else {
-      alert("Error de Sincronización: " + error.message);
+    if (initialError) {
+      console.log("Columna description no detectada, aplicando bypass...");
+      const combinedTitle = `${newRes.title} || ${newRes.description}`;
+      const { error: bypassError } = await supabase.from('resources').insert([{
+        title: combinedTitle,
+        url: newRes.url
+      }]);
+
+      if (bypassError) {
+        alert("Error crítico de base de datos: " + bypassError.message);
+        return;
+      }
     }
+
+    setNewRes({ title: '', url: '', description: '' }); 
+    setIsResModalOpen(false); 
+    fetchAllData();
   };
 
   const deleteResource = async (id, e) => {
@@ -342,17 +352,22 @@ export default function App() {
             {activeTab === 'recursos' && (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                 {resources.map(r => {
-                  // Lógica para separar título y descripción guardados con ||
-                  const parts = r.title.split(' || ');
-                  const titleDisplay = parts[0];
-                  const descDisplay = parts[1] || "Sin descripción adicional.";
+                  // LÓGICA DE VISUALIZACIÓN DUAL (Fallback)
+                  let displayTitle = r.title || "";
+                  let displayDesc = r.description || "Sin descripción.";
+
+                  if (displayTitle.includes(" || ")) {
+                    const parts = displayTitle.split(" || ");
+                    displayTitle = parts[0];
+                    displayDesc = parts[1];
+                  }
 
                   return (
                     <div key={r.id} className="group bg-white/5 border border-white/10 p-10 rounded-[3.5rem] hover:border-blue-600/50 transition-all relative shadow-xl overflow-hidden backdrop-blur-sm flex flex-col h-full">
                       {isAdmin && <button onClick={(e) => deleteResource(r.id, e)} className="absolute top-8 right-8 text-zinc-700 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-all z-20"><Trash2 className="w-5 h-5" /></button>}
                       <div className="w-14 h-14 bg-blue-600/20 rounded-2xl flex items-center justify-center mb-8"><FileText className="text-blue-500 w-7 h-7" /></div>
-                      <h3 className="text-3xl font-black italic uppercase tracking-tighter mb-4 leading-tight">{titleDisplay}</h3>
-                      <p className="text-zinc-500 italic text-sm mb-10 line-clamp-4 flex-1">{descDisplay}</p>
+                      <h3 className="text-3xl font-black italic uppercase tracking-tighter mb-4 leading-tight">{displayTitle}</h3>
+                      <p className="text-zinc-500 italic text-sm mb-10 line-clamp-4 flex-1">{displayDesc}</p>
                       <a href={r.url} target="_blank" rel="noreferrer" className="inline-flex h-14 items-center justify-center px-10 bg-black/40 border border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest text-zinc-400 hover:text-white hover:bg-blue-600 transition-all shadow-xl">ABRIR DOCUMENTO</a>
                     </div>
                   );
