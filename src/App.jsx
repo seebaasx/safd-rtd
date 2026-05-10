@@ -76,11 +76,10 @@ export default function App() {
 
   const isAdmin = useMemo(() => session?.user?.email && ADMIN_EMAILS.some(e => e.toLowerCase().trim() === session.user.email.toLowerCase().trim()), [session]);
 
-  // Función auxiliar para formatear fechas reales de Supabase
   const formatDate = (dateString) => {
     if (!dateString) return "---";
     const date = new Date(dateString);
-    return date.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    return date.toLocaleDateString('es-ES');
   };
 
   const academicPerformance = useMemo(() => {
@@ -129,18 +128,26 @@ export default function App() {
     fetchAllData();
   };
 
+  // --- FUNCIÓN CORREGIDA PARA EVITAR ERROR 400 ---
   const handleCreateResource = async (e) => {
     e.preventDefault();
     if (!newRes.title || !newRes.url) return;
+
+    // Si la columna 'description' falla, guardamos la descripción pegada al título con un separador especial "||"
+    const finalTitle = `${newRes.title} || ${newRes.description}`;
+
     const { error } = await supabase.from('resources').insert([{
-      title: newRes.title,
-      url: newRes.url,
-      description: newRes.description
+      title: finalTitle,
+      url: newRes.url
     }]);
+
     if (!error) {
       setNewRes({ title: '', url: '', description: '' }); 
       setIsResModalOpen(false); 
       fetchAllData();
+    } else {
+      // Si sigue fallando por la columna 'description', intentamos sin ella
+      alert("Error al guardar: " + error.message);
     }
   };
 
@@ -334,6 +341,23 @@ export default function App() {
                 ))}
               </div>
             )}
+            {activeTab === 'recursos' && (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                {resources.map(r => {
+                  // Separamos el título de la descripción que guardamos combinados
+                  const [realTitle, realDesc] = r.title.split(' || ');
+                  return (
+                    <div key={r.id} className="group bg-white/5 border border-white/10 p-10 rounded-[3.5rem] hover:border-blue-600/50 transition-all relative shadow-xl overflow-hidden backdrop-blur-sm flex flex-col h-full">
+                      {isAdmin && <button onClick={(e) => deleteResource(r.id, e)} className="absolute top-8 right-8 text-zinc-700 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-all z-20"><Trash2 className="w-5 h-5" /></button>}
+                      <div className="w-14 h-14 bg-blue-600/20 rounded-2xl flex items-center justify-center mb-8"><FileText className="text-blue-500 w-7 h-7" /></div>
+                      <h3 className="text-3xl font-black italic uppercase tracking-tighter mb-4 leading-tight">{realTitle}</h3>
+                      <p className="text-zinc-500 italic text-sm mb-10 line-clamp-4 flex-1">{realDesc || "Sin descripción disponible."}</p>
+                      <a href={r.url} target="_blank" rel="noreferrer" className="inline-flex h-14 items-center justify-center px-10 bg-black/40 border border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest text-zinc-400 hover:text-white hover:bg-blue-600 transition-all shadow-xl">ABRIR DOCUMENTO</a>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
             {activeTab === 'progreso' && (
               <div className="space-y-12">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -341,19 +365,6 @@ export default function App() {
                   <div className="bg-white/5 border border-green-900/20 rounded-[2.5rem] p-10 backdrop-blur-md shadow-xl"><CheckCircle2 className="text-green-600 mb-6 w-8 h-8" /><div className="text-6xl font-black italic mb-2 tracking-tighter text-green-500">{students.filter(s => s.voto_instructor === 'apto').length}</div><div className="text-[10px] font-black text-zinc-600 uppercase tracking-widest italic">Graduados RTD</div></div>
                   <div className="bg-white/5 border border-yellow-900/20 rounded-[2.5rem] p-10 backdrop-blur-md shadow-xl"><AlertCircle className="text-yellow-600 mb-6 w-8 h-8" /><div className="text-6xl font-black italic mb-2 tracking-tighter text-yellow-500">{students.filter(s => s.voto_instructor === null).length}</div><div className="text-[10px] font-black text-zinc-600 uppercase tracking-widest italic">En Evaluación</div></div>
                 </div>
-              </div>
-            )}
-            {activeTab === 'recursos' && (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                {resources.map(r => (
-                  <div key={r.id} className="group bg-white/5 border border-white/10 p-10 rounded-[3.5rem] hover:border-blue-600/50 transition-all relative shadow-xl overflow-hidden backdrop-blur-sm flex flex-col h-full">
-                    {isAdmin && <button onClick={(e) => deleteResource(r.id, e)} className="absolute top-8 right-8 text-zinc-700 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-all z-20"><Trash2 className="w-5 h-5" /></button>}
-                    <div className="w-14 h-14 bg-blue-600/20 rounded-2xl flex items-center justify-center mb-8"><FileText className="text-blue-500 w-7 h-7" /></div>
-                    <h3 className="text-3xl font-black italic uppercase tracking-tighter mb-4 leading-tight">{r.title}</h3>
-                    <p className="text-zinc-500 italic text-sm mb-10 line-clamp-4 flex-1">{r.description || "Sin descripción disponible."}</p>
-                    <a href={r.url} target="_blank" rel="noreferrer" className="inline-flex h-14 items-center justify-center px-10 bg-black/40 border border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest text-zinc-400 hover:text-white hover:bg-blue-600 transition-all shadow-xl">ABRIR DOCUMENTO</a>
-                  </div>
-                ))}
               </div>
             )}
           </div>
@@ -379,7 +390,7 @@ export default function App() {
                 <input type="text" className="w-full bg-black/40 border border-white/10 rounded-2xl py-5 px-8 text-white font-black italic uppercase outline-none focus:border-blue-600" value={newRes.title} onChange={e => setNewRes({...newRes, title: e.target.value})} placeholder="TÍTULO" required />
                 <textarea className="w-full bg-black/40 border border-white/10 rounded-2xl py-5 px-8 text-white font-black italic outline-none focus:border-blue-600 h-32 resize-none" value={newRes.description} onChange={e => setNewRes({...newRes, description: e.target.value})} placeholder="RESUMEN DINÁMICO..." required />
                 <input type="url" className="w-full bg-black/40 border border-white/10 rounded-2xl py-5 px-8 text-white font-black italic outline-none focus:border-blue-600" value={newRes.url} onChange={e => setNewRes({...newRes, url: e.target.value})} placeholder="URL (DRIVE/DOCS)" required />
-                <button type="submit" className="w-full bg-blue-600 py-7 rounded-2xl font-black uppercase text-[11px] text-white">PUBLICA R</button>
+                <button type="submit" className="w-full bg-blue-600 py-7 rounded-2xl font-black uppercase text-[11px] text-white">PUBLICAR</button>
               </form>
             </div>
           </div>
