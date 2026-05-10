@@ -9,18 +9,15 @@ import {
 const supabaseUrl = 'https://bwisxczbkjlxyunpqqld.supabase.co'; 
 const supabaseKey = 'sb_publishable_MEosBztTd-5Ot5Rb-jhaHg_BEeiWZ19';
 
-const ADMIN_EMAILS = ["iris@safd.com", "carterslade@safd.com"]; 
-// LÍNEA 13 CORREGIDA (Sin espacios extras y correos exactos)
+const ADMIN_EMAILS = ["iris@safd.com"]; 
 const USER_ROLES = { 
   "iris@safd.com": "JEFA DE BATALLÓN", 
-  "carterslade@safd.com": "Capitán",
   "blakecassidy@safd.com": "Teniente", 
   "nolanlevine@safd.com": "Capitán", 
   "lucablake@safd.com": "Teniente", 
   "alexcampbell@safd.com": "Specialist Firefighter", 
   "jinahpark@safd.com": "Sargento", 
-  "paulnystrom@safd.com": "Teniente",
-  "samantavalentine@safd.com": "Sargento",
+  "paulnystrom@safd.com": "Teniente" 
 };
 const RANGOS_ACADEMIA = ["Academy", "Probationary", "Ascendido", "Suspendido"];
 
@@ -71,7 +68,6 @@ export default function App() {
 
   const instructorInfo = useMemo(() => {
     if (!session?.user?.email) return { name: "INVITADO", rango: "VISITANTE", fullTag: "[VISITANTE] INVITADO" };
-    // Normalizamos el email para que no haya espacios ni mayúsculas que rompan la búsqueda
     const emailLower = session.user.email.toLowerCase().trim();
     const name = emailLower.split('@')[0].toUpperCase();
     const rango = USER_ROLES[emailLower] || "INSTRUCTOR";
@@ -79,6 +75,13 @@ export default function App() {
   }, [session]);
 
   const isAdmin = useMemo(() => session?.user?.email && ADMIN_EMAILS.some(e => e.toLowerCase().trim() === session.user.email.toLowerCase().trim()), [session]);
+
+  // Función auxiliar para formatear fechas
+  const formatDate = (dateString) => {
+    if (!dateString) return "5/5/2026";
+    const date = new Date(dateString);
+    return date.toLocaleDateString('es-ES');
+  };
 
   const academicPerformance = useMemo(() => {
     if (!selectedStudent) return 0;
@@ -108,6 +111,7 @@ export default function App() {
     if (selectedStudent && supabase) {
       supabase.from('observations').select('*').eq('student_id', selectedStudent.id).order('created_at', { ascending: true })
         .then(({ data }) => setObservations(data || []));
+      setTempHorario(selectedStudent.horario || 'Mañana / Tarde');
     }
   }, [selectedStudent, supabase]);
 
@@ -118,7 +122,7 @@ export default function App() {
     const skills = ['actitud', 'mando', 'interna', 'radio', 'primeros_aux', 'excarcelacion_hab', 'incendios_hab'];
     if (skills.includes(column)) {
       updatePayload[`${column}_validador`] = finalValue ? instructorInfo.fullTag : null;
-      updatePayload[`${column}_fecha`] = "5/5/2026";
+      updatePayload[`${column}_fecha`] = finalValue ? new Date().toLocaleDateString('es-ES') : null;
     }
     await supabase.from('students').update(updatePayload).eq('id', selectedStudent.id);
     setSelectedStudent({ ...selectedStudent, ...updatePayload });
@@ -220,11 +224,11 @@ export default function App() {
       <aside className="w-full md:w-24 bg-black/40 border-r border-white/10 flex flex-col items-center py-10 h-screen sticky top-0 z-50 backdrop-blur-xl">
         <img src="https://r2.fivemanage.com/rlMpa4HCjCLM3vQVrxiNo/RTD.png" className="w-14 h-14 object-contain mb-16 drop-shadow-xl" alt="Logo" />
         <nav className="flex md:flex-col gap-8">
-          <button onClick={() => { setActiveTab('alumnos'); setSelectedStudent(null); }} className={`p-4 rounded-2xl transition-all ${activeTab === 'alumnos' ? 'bg-red-600 text-white shadow-xl shadow-red-600/10' : 'text-zinc-600 hover:text-white'}`}><Users /></button>
-          <button onClick={() => setActiveTab('progreso')} className={`p-4 rounded-2xl transition-all ${activeTab === 'progreso' ? 'bg-red-600 text-white shadow-xl shadow-red-600/10' : 'text-zinc-600 hover:text-white'}`}><BarChart3 /></button>
-          <button onClick={() => setActiveTab('recursos')} className={`p-4 rounded-2xl transition-all ${activeTab === 'recursos' ? 'bg-red-600 text-white shadow-xl shadow-red-600/10' : 'text-zinc-600 hover:text-white'}`}><BookOpen /></button>
+          <button onClick={() => { setActiveTab('alumnos'); setSelectedStudent(null); }} className={`p-4 rounded-2xl transition-all ${activeTab === 'alumnos' ? 'bg-red-600 text-white shadow-xl shadow-red-600/10' : 'text-zinc-600 hover:text-white'}`}><Users className="w-6 h-6" /></button>
+          <button onClick={() => setActiveTab('progreso')} className={`p-4 rounded-2xl transition-all ${activeTab === 'progreso' ? 'bg-red-600 text-white shadow-xl shadow-red-600/10' : 'text-zinc-600 hover:text-white'}`}><BarChart3 className="w-6 h-6" /></button>
+          <button onClick={() => setActiveTab('recursos')} className={`p-4 rounded-2xl transition-all ${activeTab === 'recursos' ? 'bg-red-600 text-white shadow-xl shadow-red-600/10' : 'text-zinc-600 hover:text-white'}`}><BookOpen className="w-6 h-6" /></button>
         </nav>
-        <button onClick={() => { supabase.auth.signOut(); window.localStorage.clear(); window.location.reload(); }} className="mt-auto p-4 text-zinc-800 hover:text-red-600 transition-all"><LogOut /></button>
+        <button onClick={() => { supabase.auth.signOut(); window.localStorage.clear(); window.location.reload(); }} className="mt-auto p-4 text-zinc-800 hover:text-red-600 transition-all"><LogOut className="w-6 h-6" /></button>
       </aside>
 
       <main className="flex-1 p-6 md:p-16 overflow-y-auto relative z-10">
@@ -284,7 +288,7 @@ export default function App() {
               {[ { key: 'actitud', label: 'ACTITUD' }, { key: 'mando', label: 'MANDO' }, { key: 'interna', label: 'BUEN USO DE INTERNA' }, { key: 'radio', label: 'COMUNICACIÓN POR RADIO' }, { key: 'primeros_aux', label: 'PRIMEROS AUXILIOS' }, { key: 'excarcelacion_hab', label: 'EXCARCELACIONES' }, { key: 'incendios_hab', label: 'INCENDIOS' }
               ].map((skill) => (
                 <div key={skill.key} className="bg-white/5 border border-white/10 p-8 rounded-[2rem] flex flex-col md:flex-row justify-between md:items-center gap-6 backdrop-blur-md shadow-xl hover:border-red-600/30 transition-all">
-                  <div><div className="font-black italic text-xl uppercase mb-2 tracking-tighter">{skill.label}</div><div className="text-[8px] font-black text-zinc-600 uppercase tracking-widest italic">{selectedStudent[skill.key] && selectedStudent[skill.key] !== 'no' ? `FIRMADO: ${selectedStudent[`${skill.key}_validador`]}` : 'Pte. Validación'}</div></div>
+                  <div><div className="font-black italic text-xl uppercase mb-2 tracking-tighter">{skill.label}</div><div className="text-[8px] font-black text-zinc-600 uppercase tracking-widest italic">{selectedStudent[skill.key] && selectedStudent[skill.key] !== 'no' ? `FIRMADO: ${selectedStudent[`${skill.key}_validador`]} — ${selectedStudent[`${skill.key}_fecha`] || formatDate(selectedStudent.updated_at)}` : 'Pte. Validación'}</div></div>
                   <div className="flex gap-2">{['no', 'cursando', 'aprendido'].map(status => (<button key={status} onClick={() => updateStudentData(skill.key, status)} className={`px-6 py-2 rounded-xl text-[9px] font-black transition-all ${selectedStudent[skill.key] === status ? (status === 'aprendido' ? 'bg-green-600 text-white shadow-lg shadow-green-600/20' : status === 'cursando' ? 'bg-yellow-600 text-white shadow-lg' : 'bg-zinc-700 text-white') : 'bg-black/20 text-zinc-600'}`}>{status.toUpperCase()}</button>))}</div>
                 </div>
               ))}
@@ -304,7 +308,7 @@ export default function App() {
                      {observations.map(obs => (
                        <div key={obs.id} className="bg-black/40 border border-white/5 rounded-3xl p-8 shadow-inner group relative hover:border-red-600/20 transition-all">
                           {isAdmin && <button onClick={() => deleteObservation(obs.id)} className="absolute top-6 right-6 text-zinc-700 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-all"><X className="w-4 h-4" /></button>}
-                          <div className="flex justify-between items-center mb-4 border-b border-white/5 pb-4"><div className="flex items-center gap-3 italic"><div className="w-1.5 h-1.5 bg-red-600 rounded-full animate-pulse shadow-md shadow-red-600/50"></div><span className="text-[10px] font-black text-white">{obs.instructor_name}</span></div><span className="text-[8px] text-zinc-700 font-black uppercase tracking-widest italic">5/5/2026</span></div>
+                          <div className="flex justify-between items-center mb-4 border-b border-white/5 pb-4"><div className="flex items-center gap-3 italic"><div className="w-1.5 h-1.5 bg-red-600 rounded-full animate-pulse shadow-md shadow-red-600/50"></div><span className="text-[10px] font-black text-white">{obs.instructor_name}</span></div><span className="text-[8px] text-zinc-700 font-black uppercase tracking-widest italic">{formatDate(obs.created_at)}</span></div>
                           <p className="pl-6 border-l-2 border-red-600/40 text-zinc-400 italic text-sm leading-relaxed">{obs.content}</p>
                        </div>
                      ))}
@@ -361,7 +365,7 @@ export default function App() {
               <div className="flex justify-between items-center mb-12"><h2 className="text-4xl font-black italic uppercase tracking-tighter">Alta Aspirante</h2><button onClick={() => setIsModalOpen(false)} className="text-zinc-700 hover:text-white"><X className="w-8 h-8" /></button></div>
               <form onSubmit={handleCreateStudent} className="space-y-10">
                 <input type="text" className="w-full bg-black/40 border border-white/10 rounded-2xl py-6 px-10 outline-none focus:border-red-600 transition-all font-black uppercase italic text-white text-xl" value={newStudentName} onChange={e => setNewStudentName(e.target.value)} placeholder="NOMBRE COMPLETO" required autoFocus />
-                <button type="submit" className="w-full bg-red-600 py-7 rounded-2xl font-black uppercase text-[11px] shadow-2xl shadow-red-600/20 text-white active:scale-95 transition-all">REGISTRAR EN RTD</button>
+                <button type="submit" className="w-full bg-red-600 py-7 rounded-2xl font-black uppercase text-[11px] shadow-2xl shadow-red-600/20 text-white">REGISTRAR EN RTD</button>
               </form>
             </div>
           </div>
