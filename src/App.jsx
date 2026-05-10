@@ -76,11 +76,11 @@ export default function App() {
 
   const isAdmin = useMemo(() => session?.user?.email && ADMIN_EMAILS.some(e => e.toLowerCase().trim() === session.user.email.toLowerCase().trim()), [session]);
 
-  // Función auxiliar para formatear fechas
+  // Función auxiliar para formatear fechas reales de Supabase
   const formatDate = (dateString) => {
-    if (!dateString) return "5/5/2026";
+    if (!dateString) return "---";
     const date = new Date(dateString);
-    return date.toLocaleDateString('es-ES');
+    return date.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
   };
 
   const academicPerformance = useMemo(() => {
@@ -379,7 +379,7 @@ export default function App() {
                 <input type="text" className="w-full bg-black/40 border border-white/10 rounded-2xl py-5 px-8 text-white font-black italic uppercase outline-none focus:border-blue-600" value={newRes.title} onChange={e => setNewRes({...newRes, title: e.target.value})} placeholder="TÍTULO" required />
                 <textarea className="w-full bg-black/40 border border-white/10 rounded-2xl py-5 px-8 text-white font-black italic outline-none focus:border-blue-600 h-32 resize-none" value={newRes.description} onChange={e => setNewRes({...newRes, description: e.target.value})} placeholder="RESUMEN DINÁMICO..." required />
                 <input type="url" className="w-full bg-black/40 border border-white/10 rounded-2xl py-5 px-8 text-white font-black italic outline-none focus:border-blue-600" value={newRes.url} onChange={e => setNewRes({...newRes, url: e.target.value})} placeholder="URL (DRIVE/DOCS)" required />
-                <button type="submit" className="w-full bg-blue-600 py-7 rounded-2xl font-black uppercase text-[11px] text-white">PUBLICAR</button>
+                <button type="submit" className="w-full bg-blue-600 py-7 rounded-2xl font-black uppercase text-[11px] text-white">PUBLICA R</button>
               </form>
             </div>
           </div>
