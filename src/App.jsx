@@ -128,16 +128,15 @@ export default function App() {
     fetchAllData();
   };
 
-  // --- FUNCIÓN CORREGIDA PARA EVITAR ERROR 400 ---
   const handleCreateResource = async (e) => {
     e.preventDefault();
     if (!newRes.title || !newRes.url) return;
 
-    // Si la columna 'description' falla, guardamos la descripción pegada al título con un separador especial "||"
-    const finalTitle = `${newRes.title} || ${newRes.description}`;
+    // BYPASS: Unimos título y descripción para evitar usar la columna 'description' que da error 400
+    const combinedTitle = `${newRes.title} || ${newRes.description}`;
 
     const { error } = await supabase.from('resources').insert([{
-      title: finalTitle,
+      title: combinedTitle,
       url: newRes.url
     }]);
 
@@ -146,8 +145,7 @@ export default function App() {
       setIsResModalOpen(false); 
       fetchAllData();
     } else {
-      // Si sigue fallando por la columna 'description', intentamos sin ella
-      alert("Error al guardar: " + error.message);
+      alert("Error de Sincronización: " + error.message);
     }
   };
 
@@ -344,14 +342,17 @@ export default function App() {
             {activeTab === 'recursos' && (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                 {resources.map(r => {
-                  // Separamos el título de la descripción que guardamos combinados
-                  const [realTitle, realDesc] = r.title.split(' || ');
+                  // Lógica para separar título y descripción guardados con ||
+                  const parts = r.title.split(' || ');
+                  const titleDisplay = parts[0];
+                  const descDisplay = parts[1] || "Sin descripción adicional.";
+
                   return (
                     <div key={r.id} className="group bg-white/5 border border-white/10 p-10 rounded-[3.5rem] hover:border-blue-600/50 transition-all relative shadow-xl overflow-hidden backdrop-blur-sm flex flex-col h-full">
                       {isAdmin && <button onClick={(e) => deleteResource(r.id, e)} className="absolute top-8 right-8 text-zinc-700 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-all z-20"><Trash2 className="w-5 h-5" /></button>}
                       <div className="w-14 h-14 bg-blue-600/20 rounded-2xl flex items-center justify-center mb-8"><FileText className="text-blue-500 w-7 h-7" /></div>
-                      <h3 className="text-3xl font-black italic uppercase tracking-tighter mb-4 leading-tight">{realTitle}</h3>
-                      <p className="text-zinc-500 italic text-sm mb-10 line-clamp-4 flex-1">{realDesc || "Sin descripción disponible."}</p>
+                      <h3 className="text-3xl font-black italic uppercase tracking-tighter mb-4 leading-tight">{titleDisplay}</h3>
+                      <p className="text-zinc-500 italic text-sm mb-10 line-clamp-4 flex-1">{descDisplay}</p>
                       <a href={r.url} target="_blank" rel="noreferrer" className="inline-flex h-14 items-center justify-center px-10 bg-black/40 border border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest text-zinc-400 hover:text-white hover:bg-blue-600 transition-all shadow-xl">ABRIR DOCUMENTO</a>
                     </div>
                   );
