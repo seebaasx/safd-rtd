@@ -155,31 +155,41 @@ export default function App() {
 
   const handleCreateResource = async (e) => {
     e.preventDefault();
+    
+    // 1. Validaciones iniciales
     if (!newRes.title || !newRes.url || !newRes.description) {
       alert("Todos los campos son requeridos");
       return;
     }
+    
     if (!isValidUrl(newRes.url)) {
       alert("La URL no es válida");
       return;
     }
     
     try {
+      // 2. Inserción en Supabase
+      // NOTA: Usamos 'link' para coincidir con la columna de la tabla en Supabase
       const { error } = await supabase.from('resources').insert([{ 
         title: newRes.title, 
         description: newRes.description,
-        url: newRes.url,
+        link: newRes.url, // Mapear estado url a columna link
         category: newRes.category
       }]);
+      
       if (!error) { 
+        // 3. Limpieza y actualización tras éxito
         setNewRes({ title: '', url: '', description: '', category: 'manuales' }); 
         setIsResModalOpen(false); 
         fetchAllData(); 
+        alert("✓ Recurso publicado con éxito");
+      } else { 
+        // Captura el error específico
+        alert("Error de base de datos: " + error.message); 
       }
-      else { alert("Error: " + error.message); }
     } catch (error) {
       console.error('Error creating resource:', error);
-      alert("Error al crear el recurso");
+      alert("Error crítico al conectar con el servidor");
     }
   };
 
@@ -439,7 +449,7 @@ export default function App() {
                   return (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                       {filtered.map(r => {
-                        const Icon = getResourceIcon(r.url);
+                        const Icon = getResourceIcon(r.link);
                         const category = RESOURCE_CATEGORIES.find(c => c.id === r.category);
                         const categoryColor = category ? category.color : 'blue';
                         
@@ -481,7 +491,7 @@ export default function App() {
                               
                               {/* CTA Button */}
                               <a 
-                                href={r.url} 
+                                href={r.link}
                                 target="_blank" 
                                 rel="noreferrer" 
                                 className={`inline-flex w-full h-14 items-center justify-center px-10 gap-3 bg-${categoryColor}-600/20 border border-${categoryColor}-600/50 rounded-2xl text-[10px] font-black uppercase tracking-widest text-${categoryColor}-400 hover:text-white hover:bg-${categoryColor}-600 hover:border-${categoryColor}-600 transition-all shadow-xl group/link`}
