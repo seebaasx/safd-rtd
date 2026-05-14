@@ -44,6 +44,10 @@ export default function App() {
   const [newStudentName, setNewStudentName] = useState('');
   const [isResModalOpen, setIsResModalOpen] = useState(false);
   const [newRes, setNewRes] = useState({ title: '', description: '', url: '', category: 'manuales' });
+  
+  // Estados para edición de recursos
+  const [isEditingResource, setIsEditingResource] = useState(false);
+  const [editingResourceId, setEditingResourceId] = useState(null);
 
   const [currentSlide, setCurrentSlide] = useState(0);
   const [emailInput, setEmailInput] = useState('');
@@ -207,7 +211,66 @@ export default function App() {
 
   const deleteResource = async (id, e) => {
     e.stopPropagation();
-    if (window.confirm("¿ELIMINAR RECURSO?")) { await supabase.from('resources').delete().eq('id', id); fetchAllData(); }
+    if (window.confirm("¿ELIMINAR ESTE RECURSO?")) { 
+      try {
+        await supabase.from('resources').delete().eq('id', id); 
+        fetchAllData();
+        alert("✓ Recurso eliminado correctamente");
+      } catch (error) {
+        console.error('Error deleting resource:', error);
+        alert("Error al eliminar el recurso");
+      }
+    }
+  };
+
+  const openEditResource = (resource, e) => {
+    e.stopPropagation();
+    setNewRes({ 
+      title: resource.title, 
+      description: resource.description, 
+      url: resource.link,  // El campo en BD es 'link'
+      category: resource.category 
+    });
+    setEditingResourceId(resource.id);
+    setIsEditingResource(true);
+  };
+
+  const handleEditResource = async (e) => {
+    e.preventDefault();
+    
+    if (!newRes.title || !newRes.url || !newRes.description) {
+      alert("Todos los campos son requeridos");
+      return;
+    }
+    
+    if (!isValidUrl(newRes.url)) {
+      alert("La URL no es válida");
+      return;
+    }
+    
+    try {
+      const { error } = await supabase.from('resources')
+        .update({ 
+          title: newRes.title, 
+          description: newRes.description,
+          link: newRes.url,
+          category: newRes.category
+        })
+        .eq('id', editingResourceId);
+      
+      if (!error) { 
+        setNewRes({ title: '', url: '', description: '', category: 'manuales' }); 
+        setIsEditingResource(false);
+        setEditingResourceId(null);
+        fetchAllData(); 
+        alert("✓ Recurso actualizado con éxito");
+      } else { 
+        alert("Error de base de datos: " + error.message); 
+      }
+    } catch (error) {
+      console.error('Error updating resource:', error);
+      alert("Error crítico al conectar con el servidor");
+    }
   };
 
   const sendObservation = async () => {
@@ -455,8 +518,25 @@ export default function App() {
                         
                         return (
                           <div key={r.id} className="group bg-white/5 border border-white/10 p-10 rounded-[3.5rem] hover:border-blue-600/50 transition-all relative shadow-xl flex flex-col h-full backdrop-blur-sm overflow-hidden">
-                            {/* Delete Button */}
-                            {isAdmin && <button onClick={(e) => deleteResource(r.id, e)} className="absolute top-8 right-8 text-zinc-700 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-all z-20"><Plus className="w-5 h-5 rotate-45" /></button>}
+                            {/* Edit & Delete Buttons */}
+                            {isAdmin && (
+                              <div className="absolute top-8 right-8 flex gap-2 opacity-0 group-hover:opacity-100 transition-all z-20">
+                                <button 
+                                  onClick={(e) => openEditResource(r, e)} 
+                                  className="p-3 bg-blue-600/30 border border-blue-600/50 rounded-full text-blue-400 hover:bg-blue-600 hover:text-white transition-all shadow-lg"
+                                  title="Editar recurso"
+                                >
+                                  <Edit2 className="w-4 h-4" />
+                                </button>
+                                <button 
+                                  onClick={(e) => deleteResource(r.id, e)} 
+                                  className="p-3 bg-red-600/30 border border-red-600/50 rounded-full text-red-400 hover:bg-red-600 hover:text-white transition-all shadow-lg"
+                                  title="Eliminar recurso"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            )}
                             
                             {/* Gradient Background */}
                             <div className={`absolute top-0 right-0 w-32 h-32 bg-${categoryColor}-600/10 blur-3xl -z-0 group-hover:bg-${categoryColor}-600/20 transition-all`} />
@@ -592,6 +672,89 @@ export default function App() {
                 >
                   ✓ PUBLICAR RECURSO
                 </button>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL EDICIÓN DE RECURSO */}
+        {isEditingResource && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/90 backdrop-blur-xl text-white overflow-y-auto">
+            <div className="bg-[#0a0a0a] border border-white/10 w-full max-w-2xl rounded-[3.5rem] p-16 shadow-2xl my-auto">
+              <div className="flex justify-between items-center mb-12">
+                <h2 className="text-4xl font-black italic uppercase tracking-tighter">Editar Recurso</h2>
+                <button onClick={() => { setIsEditingResource(false); setEditingResourceId(null); setNewRes({ title: '', url: '', description: '', category: 'manuales' }); }} className="text-zinc-700 hover:text-white"><X className="w-8 h-8" /></button>
+              </div>
+              <form onSubmit={handleEditResource} className="space-y-8">
+                {/* Título */}
+                <div>
+                  <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-3 italic">TÍTULO DEL RECURSO</label>
+                  <input 
+                    type="text" 
+                    className="w-full bg-black/40 border border-white/10 rounded-2xl py-5 px-8 text-white font-black italic uppercase outline-none focus:border-blue-600 transition-all" 
+                    value={newRes.title} 
+                    onChange={e => setNewRes({...newRes, title: e.target.value})} 
+                    placeholder="Ej: MANUAL DE PROCEDIMIENTOS" 
+                    required 
+                  />
+                </div>
+
+                {/* Descripción */}
+                <div>
+                  <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-3 italic">DESCRIPCIÓN / RESUMEN</label>
+                  <textarea 
+                    className="w-full bg-black/40 border border-white/10 rounded-2xl py-5 px-8 text-white font-black italic outline-none focus:border-blue-600 h-32 resize-none transition-all" 
+                    value={newRes.description} 
+                    onChange={e => setNewRes({...newRes, description: e.target.value})} 
+                    placeholder="Describe brevemente el contenido de este recurso..." 
+                    required 
+                  />
+                </div>
+
+                {/* Categoría */}
+                <div>
+                  <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-3 italic">CATEGORÍA</label>
+                  <select 
+                    className="w-full bg-black/40 border border-white/10 rounded-2xl py-5 px-8 text-white font-black italic uppercase outline-none focus:border-blue-600 cursor-pointer transition-all" 
+                    value={newRes.category}
+                    onChange={e => setNewRes({...newRes, category: e.target.value})}
+                  >
+                    {RESOURCE_CATEGORIES.map(cat => (
+                      <option key={cat.id} value={cat.id} className="bg-zinc-900">{cat.label.toUpperCase()}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* URL */}
+                <div>
+                  <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-3 italic">URL (DRIVE, DOCS, PDF, ETC)</label>
+                  <input 
+                    type="url" 
+                    className="w-full bg-black/40 border border-white/10 rounded-2xl py-5 px-8 text-white font-black italic outline-none focus:border-blue-600 transition-all" 
+                    value={newRes.url} 
+                    onChange={e => setNewRes({...newRes, url: e.target.value})} 
+                    placeholder="https://..." 
+                    required 
+                  />
+                  <p className="text-[8px] text-zinc-600 italic mt-2">Ej: https://docs.google.com/... o https://drive.google.com/...</p>
+                </div>
+
+                {/* Submit Button */}
+                <div className="flex gap-4">
+                  <button 
+                    type="submit" 
+                    className="flex-1 bg-blue-600 hover:bg-blue-700 py-7 rounded-2xl font-black uppercase text-[11px] text-white transition-all shadow-lg shadow-blue-600/30 mt-10"
+                  >
+                    ✓ GUARDAR CAMBIOS
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => { setIsEditingResource(false); setEditingResourceId(null); setNewRes({ title: '', url: '', description: '', category: 'manuales' }); }}
+                    className="flex-1 bg-zinc-700 hover:bg-zinc-600 py-7 rounded-2xl font-black uppercase text-[11px] text-white transition-all shadow-lg mt-10"
+                  >
+                    ✕ CANCELAR
+                  </button>
+                </div>
               </form>
             </div>
           </div>
