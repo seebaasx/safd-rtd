@@ -26,3 +26,28 @@ body {
   display: flex;
   flex-direction: column;
 }
+
+/* Scrollbar personalizada */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(220, 38, 38, 0.3);
+  border-radius: 4px;
+  transition: background 0.3s;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(220, 38, 38, 0.6);
+}
+
+/* Firefox */
+.custom-scrollbar {
+  scrollbar-color: rgba(220, 38, 38, 0.3) transparent;
+  scrollbar-width: thin;
+}

@@ -1,13 +1,21 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
   Users, LogOut, Flame, ShieldCheck, User, BarChart3, BookOpen, 
   FileText, ExternalLink, Activity, X, ChevronLeft, MessageSquare, 
   Send, Clock, Calendar, ThumbsUp, ThumbsDown, Edit2, Check, ChevronRight,
-  TrendingUp, CheckCircle2, AlertCircle, Plus, Trash2
+  TrendingUp, CheckCircle2, AlertCircle, Plus, Trash2, FileJson, FileCode, 
+  FileImage, File, Search, Filter, Tag
 } from 'lucide-react';
 
-const supabaseUrl = 'https://bwisxczbkjlxyunpqqld.supabase.co'; 
-const supabaseKey = 'sb_publishable_MEosBztTd-5Ot5Rb-jhaHg_BEeiWZ19';
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://bwisxczbkjlxyunpqqld.supabase.co'; 
+const supabaseKey = import.meta.env.VITE_SUPABASE_KEY || 'sb_publishable_MEosBztTd-5Ot5Rb-jhaHg_BEeiWZ19';
+
+const RESOURCE_CATEGORIES = [
+  { id: 'manuales', label: 'Manuales', color: 'blue' },
+  { id: 'procedimientos', label: 'Procedimientos', color: 'purple' },
+  { id: 'formatos', label: 'Formatos', color: 'green' },
+  { id: 'entrenamientos', label: 'Entrenamientos', color: 'orange' }
+];
 
 const ADMIN_EMAILS = ["iris@safd.com"]; 
 const USER_ROLES = { 
@@ -35,13 +43,17 @@ export default function App() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newStudentName, setNewStudentName] = useState('');
   const [isResModalOpen, setIsResModalOpen] = useState(false);
-  const [newRes, setNewRes] = useState({ title: '', url: '', description: '' });
+  const [newRes, setNewRes] = useState({ title: '', description: '', url: '', category: 'manuales' });
 
   const [currentSlide, setCurrentSlide] = useState(0);
   const [emailInput, setEmailInput] = useState('');
   const [passInput, setPassInput] = useState('');
   const [isEditingHorario, setIsEditingHorario] = useState(false);
   const [tempHorario, setTempHorario] = useState('');
+  
+  // Búsqueda y filtros para biblioteca
+  const [searchResource, setSearchResource] = useState('');
+  const [filterCategory, setFilterCategory] = useState('todos');
 
   const slides = [
     { title: "RTD PORTAL", subtitle: "RECRUITMENT & TRAINING DIVISION", image: "https://r2.fivemanage.com/rlMpa4HCjCLM3vQVrxiNo/imagen_2026-04-13_222621960.png" },
@@ -64,7 +76,7 @@ export default function App() {
     document.body.appendChild(script);
   }, []);
 
-  useEffect(() => { if (!session) { const timer = setInterval(() => setCurrentSlide(prev => (prev + 1) % slides.length), 5000); return () => clearInterval(timer); } }, [session]);
+  useEffect(() => { if (!session) { const timer = setInterval(() => setCurrentSlide(prev => (prev + 1) % slides.length), 5000); return () => clearInterval(timer); } }, [session, slides.length]);
 
   const instructorInfo = useMemo(() => {
     if (!session?.user?.email) return { name: "INVITADO", rango: "VISITANTE", fullTag: "[VISITANTE] INVITADO" };
@@ -82,12 +94,41 @@ export default function App() {
     return date.toLocaleDateString('es-ES');
   };
 
+  // Validar URL
+  const isValidUrl = (url) => {
+    try {
+      new URL(url);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  // Obtener ícono según tipo de recurso
+  const getResourceIcon = (url) => {
+    if (!url) return FileText;
+    const lowerUrl = url.toLowerCase();
+    if (lowerUrl.includes('docs.google') || lowerUrl.includes('.docx')) return FileText;
+    if (lowerUrl.includes('sheets.google') || lowerUrl.includes('.xlsx')) return FileJson;
+    if (lowerUrl.includes('pdf')) return FileCode;
+    if (lowerUrl.includes('drive.google')) return File;
+    return FileText;
+  };
+
   async function fetchAllData(client = supabase) {
     if (!client) return;
-    const { data: stds } = await client.from('students').select('*').order('name');
-    const { data: ress } = await client.from('resources').select('*').order('created_at', { ascending: false });
-    setStudents(stds || []);
-    setResources(ress || []);
+    try {
+      const { data: stds, error: stdErr } = await client.from('students').select('*').order('name');
+      const { data: ress, error: resErr } = await client.from('resources').select('*').order('created_at', { ascending: false });
+      
+      if (stdErr) console.error('Error fetching students:', stdErr);
+      if (resErr) console.error('Error fetching resources:', resErr);
+      
+      setStudents(stds || []);
+      setResources(ress || []);
+    } catch (error) {
+      console.error('Error fetching data:', error);
+    }
   }
 
   useEffect(() => {
@@ -114,11 +155,32 @@ export default function App() {
 
   const handleCreateResource = async (e) => {
     e.preventDefault();
-    if (!newRes.title || !newRes.url) return;
-    const combined = `${newRes.title.toUpperCase()} || ${newRes.description}`;
-    const { error } = await supabase.from('resources').insert([{ title: combined, url: newRes.url }]);
-    if (!error) { setNewRes({ title: '', url: '', description: '' }); setIsResModalOpen(false); fetchAllData(); }
-    else { alert("Error: " + error.message); }
+    if (!newRes.title || !newRes.url || !newRes.description) {
+      alert("Todos los campos son requeridos");
+      return;
+    }
+    if (!isValidUrl(newRes.url)) {
+      alert("La URL no es válida");
+      return;
+    }
+    
+    try {
+      const { error } = await supabase.from('resources').insert([{ 
+        title: newRes.title, 
+        description: newRes.description,
+        url: newRes.url,
+        category: newRes.category
+      }]);
+      if (!error) { 
+        setNewRes({ title: '', url: '', description: '', category: 'manuales' }); 
+        setIsResModalOpen(false); 
+        fetchAllData(); 
+      }
+      else { alert("Error: " + error.message); }
+    } catch (error) {
+      console.error('Error creating resource:', error);
+      alert("Error al crear el recurso");
+    }
   };
 
   const handleCreateStudent = async (e) => {
@@ -312,19 +374,128 @@ export default function App() {
             )}
 
             {activeTab === 'recursos' && (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                {resources.map(r => {
-                  const parts = r.title.split(' || ');
+              <div className="space-y-12">
+                {/* CONTROLES DE BÚSQUEDA Y FILTRO */}
+                <div className="space-y-6">
+                  {/* Buscador */}
+                  <div className="relative">
+                    <Search className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-600" />
+                    <input 
+                      type="text" 
+                      placeholder="Buscar recurso..." 
+                      value={searchResource}
+                      onChange={e => setSearchResource(e.target.value)}
+                      className="w-full bg-black/40 border border-white/10 rounded-2xl py-4 px-14 text-white font-bold outline-none focus:border-blue-600 transition-all"
+                    />
+                  </div>
+
+                  {/* Filtros por Categoría */}
+                  <div className="flex gap-3 flex-wrap">
+                    <button
+                      onClick={() => setFilterCategory('todos')}
+                      className={`px-6 py-3 rounded-full text-[9px] font-black uppercase tracking-widest transition-all ${filterCategory === 'todos' ? 'bg-blue-600 text-white shadow-lg' : 'bg-white/5 border border-white/10 text-zinc-400 hover:text-white'}`}
+                    >
+                      TODOS ({resources.length})
+                    </button>
+                    {RESOURCE_CATEGORIES.map(cat => {
+                      const count = resources.filter(r => r.category === cat.id).length;
+                      return (
+                        <button
+                          key={cat.id}
+                          onClick={() => setFilterCategory(cat.id)}
+                          className={`px-6 py-3 rounded-full text-[9px] font-black uppercase tracking-widest transition-all inline-flex items-center gap-2 ${filterCategory === cat.id ? `bg-${cat.color}-600 text-white shadow-lg` : 'bg-white/5 border border-white/10 text-zinc-400 hover:text-white'}`}
+                        >
+                          <Tag className="w-3 h-3" />
+                          {cat.label} ({count})
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* RECURSOS FILTRADOS */}
+                {(() => {
+                  const filtered = resources.filter(r => {
+                    const matchSearch = r.title.toLowerCase().includes(searchResource.toLowerCase()) || 
+                                       (r.description || '').toLowerCase().includes(searchResource.toLowerCase());
+                    const matchCategory = filterCategory === 'todos' || r.category === filterCategory;
+                    return matchSearch && matchCategory;
+                  });
+
+                  if (filtered.length === 0) {
+                    return (
+                      <div className="flex flex-col items-center justify-center py-24 bg-white/5 border border-white/10 rounded-[3rem] backdrop-blur-sm">
+                        <BookOpen className="w-16 h-16 text-zinc-700 mb-6" />
+                        <h3 className="text-2xl font-black italic uppercase tracking-tighter mb-2">NO HAY RECURSOS</h3>
+                        <p className="text-zinc-600 text-sm italic">
+                          {searchResource || filterCategory !== 'todos' 
+                            ? "No se encontraron resultados para tu búsqueda"
+                            : "Comienza agregando documentos a la biblioteca"}
+                        </p>
+                      </div>
+                    );
+                  }
+
                   return (
-                    <div key={r.id} className="group bg-white/5 border border-white/10 p-10 rounded-[3.5rem] hover:border-blue-600/50 transition-all relative shadow-xl flex flex-col h-full backdrop-blur-sm">
-                      {isAdmin && <button onClick={(e) => deleteResource(r.id, e)} className="absolute top-8 right-8 text-zinc-700 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-all"><Plus className="w-5 h-5 rotate-45" /></button>}
-                      <div className="w-14 h-14 bg-blue-600/20 rounded-2xl flex items-center justify-center mb-8"><FileText className="text-blue-500 w-7 h-7" /></div>
-                      <h3 className="text-3xl font-black italic uppercase tracking-tighter mb-4 leading-tight">{parts[0]}</h3>
-                      <p className="text-zinc-500 italic text-sm mb-10 line-clamp-4 flex-1">{parts[1] || "Documento oficial SAFD."}</p>
-                      <a href={r.url} target="_blank" rel="noreferrer" className="inline-flex h-14 items-center justify-center px-10 bg-black/40 border border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest text-zinc-400 hover:text-white hover:bg-blue-600 transition-all shadow-xl">ABRIR DOCUMENTO</a>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                      {filtered.map(r => {
+                        const Icon = getResourceIcon(r.url);
+                        const category = RESOURCE_CATEGORIES.find(c => c.id === r.category);
+                        const categoryColor = category ? category.color : 'blue';
+                        
+                        return (
+                          <div key={r.id} className="group bg-white/5 border border-white/10 p-10 rounded-[3.5rem] hover:border-blue-600/50 transition-all relative shadow-xl flex flex-col h-full backdrop-blur-sm overflow-hidden">
+                            {/* Delete Button */}
+                            {isAdmin && <button onClick={(e) => deleteResource(r.id, e)} className="absolute top-8 right-8 text-zinc-700 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-all z-20"><Plus className="w-5 h-5 rotate-45" /></button>}
+                            
+                            {/* Gradient Background */}
+                            <div className={`absolute top-0 right-0 w-32 h-32 bg-${categoryColor}-600/10 blur-3xl -z-0 group-hover:bg-${categoryColor}-600/20 transition-all`} />
+                            
+                            {/* Content */}
+                            <div className="relative z-10">
+                              {/* Icon & Category */}
+                              <div className="flex items-start justify-between mb-8">
+                                <div className={`w-14 h-14 bg-${categoryColor}-600/20 rounded-2xl flex items-center justify-center`}>
+                                  <Icon className={`text-${categoryColor}-500 w-7 h-7`} />
+                                </div>
+                                <span className={`px-3 py-1.5 bg-${categoryColor}-600/30 border border-${categoryColor}-600/50 rounded-full text-[8px] font-black uppercase tracking-widest text-${categoryColor}-400`}>
+                                  {category?.label || 'Recurso'}
+                                </span>
+                              </div>
+                              
+                              {/* Title */}
+                              <h3 className="text-2xl font-black italic uppercase tracking-tighter mb-4 leading-tight line-clamp-2 group-hover:text-blue-300 transition-colors">
+                                {r.title}
+                              </h3>
+                              
+                              {/* Description */}
+                              <p className="text-zinc-500 italic text-sm mb-8 line-clamp-3 flex-1 group-hover:text-zinc-400 transition-colors">
+                                {r.description || "Documento oficial SAFD"}
+                              </p>
+                              
+                              {/* Meta Info */}
+                              <div className="flex items-center gap-2 mb-8 text-[8px] font-black text-zinc-700 uppercase tracking-widest italic">
+                                <Clock className="w-3 h-3" />
+                                {formatDate(r.created_at)}
+                              </div>
+                              
+                              {/* CTA Button */}
+                              <a 
+                                href={r.url} 
+                                target="_blank" 
+                                rel="noreferrer" 
+                                className={`inline-flex w-full h-14 items-center justify-center px-10 gap-3 bg-${categoryColor}-600/20 border border-${categoryColor}-600/50 rounded-2xl text-[10px] font-black uppercase tracking-widest text-${categoryColor}-400 hover:text-white hover:bg-${categoryColor}-600 hover:border-${categoryColor}-600 transition-all shadow-xl group/link`}
+                              >
+                                <ExternalLink className="w-4 h-4 group-hover/link:translate-x-1 group-hover/link:-translate-y-1 transition-transform" />
+                                ABRIR RECURSO
+                              </a>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   );
-                })}
+                })()}
               </div>
             )}
           </div>
@@ -344,14 +515,73 @@ export default function App() {
         )}
 
         {isResModalOpen && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/90 backdrop-blur-xl text-white">
-            <div className="bg-[#0a0a0a] border border-white/10 w-full max-w-xl rounded-[3.5rem] p-16 shadow-2xl">
-              <div className="flex justify-between items-center mb-12"><h2 className="text-4xl font-black italic uppercase tracking-tighter">Nuevo Recurso</h2><button onClick={() => setIsResModalOpen(false)} className="text-zinc-700 hover:text-white"><X className="w-8 h-8" /></button></div>
-              <form onSubmit={handleCreateResource} className="space-y-6">
-                <input type="text" className="w-full bg-black/40 border border-white/10 rounded-2xl py-5 px-8 text-white font-black italic uppercase outline-none focus:border-blue-600" value={newRes.title} onChange={e => setNewRes({...newRes, title: e.target.value})} placeholder="TÍTULO" required />
-                <textarea className="w-full bg-black/40 border border-white/10 rounded-2xl py-5 px-8 text-white font-black italic outline-none focus:border-blue-600 h-32 resize-none" value={newRes.description} onChange={e => setNewRes({...newRes, description: e.target.value})} placeholder="RESUMEN (DINÁMICO)..." required />
-                <input type="url" className="w-full bg-black/40 border border-white/10 rounded-2xl py-5 px-8 text-white font-black italic outline-none focus:border-blue-600" value={newRes.url} onChange={e => setNewRes({...newRes, url: e.target.value})} placeholder="URL DRIVE/DOCS" required />
-                <button type="submit" className="w-full bg-blue-600 py-7 rounded-2xl font-black uppercase text-[11px] text-white">PUBLICAR</button>
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/90 backdrop-blur-xl text-white overflow-y-auto">
+            <div className="bg-[#0a0a0a] border border-white/10 w-full max-w-2xl rounded-[3.5rem] p-16 shadow-2xl my-auto">
+              <div className="flex justify-between items-center mb-12">
+                <h2 className="text-4xl font-black italic uppercase tracking-tighter">Nuevo Recurso</h2>
+                <button onClick={() => setIsResModalOpen(false)} className="text-zinc-700 hover:text-white"><X className="w-8 h-8" /></button>
+              </div>
+              <form onSubmit={handleCreateResource} className="space-y-8">
+                {/* Título */}
+                <div>
+                  <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-3 italic">TÍTULO DEL RECURSO</label>
+                  <input 
+                    type="text" 
+                    className="w-full bg-black/40 border border-white/10 rounded-2xl py-5 px-8 text-white font-black italic uppercase outline-none focus:border-blue-600 transition-all" 
+                    value={newRes.title} 
+                    onChange={e => setNewRes({...newRes, title: e.target.value})} 
+                    placeholder="Ej: MANUAL DE PROCEDIMIENTOS" 
+                    required 
+                  />
+                </div>
+
+                {/* Descripción */}
+                <div>
+                  <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-3 italic">DESCRIPCIÓN / RESUMEN</label>
+                  <textarea 
+                    className="w-full bg-black/40 border border-white/10 rounded-2xl py-5 px-8 text-white font-black italic outline-none focus:border-blue-600 h-32 resize-none transition-all" 
+                    value={newRes.description} 
+                    onChange={e => setNewRes({...newRes, description: e.target.value})} 
+                    placeholder="Describe brevemente el contenido de este recurso..." 
+                    required 
+                  />
+                </div>
+
+                {/* Categoría */}
+                <div>
+                  <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-3 italic">CATEGORÍA</label>
+                  <select 
+                    className="w-full bg-black/40 border border-white/10 rounded-2xl py-5 px-8 text-white font-black italic uppercase outline-none focus:border-blue-600 cursor-pointer transition-all" 
+                    value={newRes.category}
+                    onChange={e => setNewRes({...newRes, category: e.target.value})}
+                  >
+                    {RESOURCE_CATEGORIES.map(cat => (
+                      <option key={cat.id} value={cat.id} className="bg-zinc-900">{cat.label.toUpperCase()}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* URL */}
+                <div>
+                  <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-3 italic">URL (DRIVE, DOCS, PDF, ETC)</label>
+                  <input 
+                    type="url" 
+                    className="w-full bg-black/40 border border-white/10 rounded-2xl py-5 px-8 text-white font-black italic outline-none focus:border-blue-600 transition-all" 
+                    value={newRes.url} 
+                    onChange={e => setNewRes({...newRes, url: e.target.value})} 
+                    placeholder="https://..." 
+                    required 
+                  />
+                  <p className="text-[8px] text-zinc-600 italic mt-2">Ej: https://docs.google.com/... o https://drive.google.com/...</p>
+                </div>
+
+                {/* Submit Button */}
+                <button 
+                  type="submit" 
+                  className="w-full bg-blue-600 hover:bg-blue-700 py-7 rounded-2xl font-black uppercase text-[11px] text-white transition-all shadow-lg shadow-blue-600/30 mt-10"
+                >
+                  ✓ PUBLICAR RECURSO
+                </button>
               </form>
             </div>
           </div>
