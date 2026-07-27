@@ -17,15 +17,16 @@ const RESOURCE_CATEGORIES = [
   { id: 'entrenamientos', label: 'Entrenamientos', color: 'orange' }
 ];
 
-const ADMIN_EMAILS = ["iris@safd.com"]; 
+const ADMIN_EMAILS = ["sya@safd.com"]; 
 const USER_ROLES = { 
-  "iris@safd.com": "JEFA DE BATALLÓN", 
-  "blakecassidy@safd.com": "Teniente", 
-  "nolanlevine@safd.com": "Capitán", 
-  "lucablake@safd.com": "Teniente", 
+  "sya@safd.com": "JEFA DE BATALLÓN", 
+  "drewcalloway@safd.com": "Teniente", 
+  "wilhem@safd.com": "Teniente", 
+  "zanebrooks@safd.com": "Teniente", 
   "alexcampbell@safd.com": "Specialist Firefighter", 
-  "jinahpark@safd.com": "Sargento", 
-  "paulnystrom@safd.com": "Teniente" 
+  "scarletaylor@safd.com": "Sargento", 
+  "eros@safd.com": "Capitan",
+  "markuskraver@safd.com": "Shift Commander",
 };
 const RANGOS_ACADEMIA = ["Academy", "Probationary", "Ascendido", "Suspendido"];
 
