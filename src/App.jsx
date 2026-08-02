@@ -16,12 +16,16 @@ const RESOURCE_CATEGORIES = [
   { id: 'formatos', label: 'Formatos', color: 'green' },
   { id: 'entrenamientos', label: 'Entrenamientos', color: 'orange' }
 ];
+const INGRESO_TIPOS = [
+  { id: 'academia', label: 'Miembros de Academia' },
+  { id: 'traslado', label: 'Miembros de Traslado' }
+];
 
 const ADMIN_EMAILS = ["sya@safd.com"]; 
 const USER_ROLES = { 
   "sya@safd.com": "JEFA DE BATALLÓN", 
   "drewcalloway@safd.com": "Teniente", 
-  "wilhem@safd.com": "Teniente", 
+  "wilhelm@safd.com": "Teniente", 
   "zanebrooks@safd.com": "Teniente", 
   "alexcampbell@safd.com": "Specialist Firefighter", 
   "scarletaylor@safd.com": "Sargento", 
@@ -43,6 +47,7 @@ export default function App() {
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newStudentName, setNewStudentName] = useState('');
+  const [newStudentOrigin, setNewStudentOrigin] = useState('academia');
   const [isResModalOpen, setIsResModalOpen] = useState(false);
   const [newRes, setNewRes] = useState({ title: '', description: '', url: '', category: 'manuales' });
   
@@ -55,6 +60,7 @@ export default function App() {
   const [passInput, setPassInput] = useState('');
   const [isEditingHorario, setIsEditingHorario] = useState(false);
   const [tempHorario, setTempHorario] = useState('');
+  const [tempFechaIngreso, setTempFechaIngreso] = useState('');
   
   // Búsqueda y filtros para biblioteca
   const [searchResource, setSearchResource] = useState('');
@@ -92,6 +98,8 @@ export default function App() {
   }, [session]);
 
   const isAdmin = useMemo(() => session?.user?.email && ADMIN_EMAILS.some(e => e.toLowerCase().trim() === session.user.email.toLowerCase().trim()), [session]);
+  const academyStudents = useMemo(() => students.filter(student => (student.tipo_ingreso || 'academia') === 'academia'), [students]);
+  const trasladoStudents = useMemo(() => students.filter(student => student.tipo_ingreso === 'traslado'), [students]);
 
   const formatDate = (dateString) => {
     if (!dateString) return "---";
@@ -141,6 +149,7 @@ export default function App() {
       supabase.from('observations').select('*').eq('student_id', selectedStudent.id).order('created_at', { ascending: true })
         .then(({ data }) => setObservations(data || []));
       setTempHorario(selectedStudent.horario || 'Mañana / Tarde');
+      setTempFechaIngreso(selectedStudent.fecha_ingreso || (selectedStudent.created_at ? new Date(selectedStudent.created_at).toISOString().split('T')[0] : ''));
     }
   }, [selectedStudent, supabase]);
 
@@ -201,8 +210,18 @@ export default function App() {
   const handleCreateStudent = async (e) => {
     e.preventDefault();
     if (!newStudentName.trim()) return;
-    await supabase.from('students').insert([{ name: newStudentName, rango: 'Academy', horario: 'Mañana / Tarde' }]);
-    setNewStudentName(''); setIsModalOpen(false); fetchAllData();
+    const fechaIngreso = new Date().toISOString().split('T')[0];
+    await supabase.from('students').insert([{ 
+      name: newStudentName,
+      rango: 'Academy',
+      horario: 'Mañana / Tarde',
+      tipo_ingreso: newStudentOrigin,
+      fecha_ingreso: fechaIngreso
+    }]);
+    setNewStudentName('');
+    setNewStudentOrigin('academia');
+    setIsModalOpen(false);
+    fetchAllData();
   };
 
   const deleteStudent = async (id, e) => {
@@ -362,28 +381,45 @@ export default function App() {
                   <select className="bg-black/40 border border-white/10 text-white p-3 rounded-xl w-full font-black italic uppercase outline-none focus:border-red-600 cursor-pointer" value={selectedStudent.rango || "Academy"} onChange={(e) => updateStudentData('rango', e.target.value)}>{RANGOS_ACADEMIA.map(r => <option key={r} value={r} className="bg-zinc-900">{r.toUpperCase()}</option>)}</select>
                </div>
                <div className="bg-white/5 border border-white/10 rounded-[3rem] p-10 backdrop-blur-md shadow-2xl">
+                  <div className="text-zinc-600 text-[9px] font-black uppercase tracking-widest mb-6">Tipo de Ingreso</div>
+                  <select className="bg-black/40 border border-white/10 text-white p-3 rounded-xl w-full font-black italic uppercase outline-none focus:border-red-600 cursor-pointer" value={selectedStudent.tipo_ingreso || 'academia'} onChange={(e) => updateStudentData('tipo_ingreso', e.target.value)}>{INGRESO_TIPOS.map(tipo => <option key={tipo.id} value={tipo.id} className="bg-zinc-900">{tipo.label.toUpperCase()}</option>)}</select>
+               </div>
+               <div className="bg-white/5 border border-white/10 rounded-[3rem] p-10 backdrop-blur-md shadow-2xl">
                   <div className="flex justify-between items-center mb-6"><span className="text-zinc-600 text-[9px] font-black uppercase tracking-widest italic">Rendimiento</span><span className="text-red-600 font-black italic text-xl">43%</span></div>
                   <div className="h-1.5 w-full bg-black/40 rounded-full overflow-hidden"><div className="bg-red-600 h-full w-[43%] shadow-[0_0_15px_rgba(220,38,38,0.5)]"></div></div>
                </div>
+               <div className="bg-white/5 border border-white/10 rounded-[3rem] p-10 backdrop-blur-md shadow-2xl md:col-span-2 lg:col-span-3">
+                  <div className="text-zinc-600 text-[9px] font-black uppercase tracking-widest mb-6">Fecha de Ingreso</div>
+                  <input
+                    type="date"
+                    className="bg-black/40 border border-white/10 text-white p-3 rounded-xl w-full font-black italic uppercase outline-none focus:border-red-600 cursor-pointer"
+                    value={tempFechaIngreso}
+                    onChange={(e) => {
+                      setTempFechaIngreso(e.target.value);
+                      updateStudentData('fecha_ingreso', e.target.value);
+                    }}
+                  />
+               </div>
             </div>
 
-            {/* TABLA ASISTENCIA */}
-            <div className="bg-white/5 border border-white/10 rounded-[3rem] p-10 border-t-4 border-t-green-600 backdrop-blur-md shadow-2xl">
-              <div className="text-zinc-300 text-[10px] font-black uppercase tracking-widest mb-10 flex items-center gap-2"><Calendar className="w-4 h-4 text-green-600" /> Días Academia</div>
-              <table className="w-full text-left border-separate border-spacing-y-2">
-                <thead><tr className="text-zinc-600 text-[9px] font-black uppercase tracking-widest italic"><th className="pb-4 text-left px-4">Módulo</th><th className="pb-4 text-right px-4">Estado de Sesión</th></tr></thead>
-                <tbody className="text-[10px] font-black uppercase italic">
-                  {[ { key: 'asis_radio', label: 'RADIO & DISPATCH' }, { key: 'asis_auxilios', label: 'PRIMEROS AUXILIOS' }, { key: 'asis_incendios', label: 'INCENDIOS' }, { key: 'asis_excarcelacion', label: 'EXCARCELACIÓN' } ].map(mod => (
-                    <tr key={mod.key} className="bg-black/20"><td className="py-5 px-4 text-zinc-400 text-left">{mod.label}</td>
-                      <td className="py-5 text-right px-4"><div className="flex justify-end gap-4">
-                        <button onClick={() => updateStudentData(mod.key, 'realizado')} className={`px-6 py-2 rounded-xl border transition-all ${selectedStudent[mod.key] === 'realizado' ? 'bg-green-600 border-green-400 text-white shadow-lg' : 'bg-zinc-900 border-zinc-800 text-zinc-600'}`}>REALIZADO</button>
-                        <button onClick={() => updateStudentData(mod.key, 'no_realizado')} className={`px-6 py-2 rounded-xl border transition-all ${selectedStudent[mod.key] === 'no_realizado' ? 'bg-red-600 border-red-400 text-white shadow-lg' : 'bg-zinc-900 border-zinc-800 text-zinc-600'}`}>NO REALIZADO</button>
-                      </div></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            {selectedStudent.rango !== 'Probationary' && (
+              <div className="bg-white/5 border border-white/10 rounded-[3rem] p-10 border-t-4 border-t-green-600 backdrop-blur-md shadow-2xl">
+                <div className="text-zinc-300 text-[10px] font-black uppercase tracking-widest mb-10 flex items-center gap-2"><Calendar className="w-4 h-4 text-green-600" /> Días Academia</div>
+                <table className="w-full text-left border-separate border-spacing-y-2">
+                  <thead><tr className="text-zinc-600 text-[9px] font-black uppercase tracking-widest italic"><th className="pb-4 text-left px-4">Módulo</th><th className="pb-4 text-right px-4">Estado de Sesión</th></tr></thead>
+                  <tbody className="text-[10px] font-black uppercase italic">
+                    {[ { key: 'asis_radio', label: 'RADIO & DISPATCH' }, { key: 'asis_auxilios', label: 'PRIMEROS AUXILIOS' }, { key: 'asis_incendios', label: 'INCENDIOS' }, { key: 'asis_excarcelacion', label: 'EXCARCELACIÓN' } ].map(mod => (
+                      <tr key={mod.key} className="bg-black/20"><td className="py-5 px-4 text-zinc-400 text-left">{mod.label}</td>
+                        <td className="py-5 text-right px-4"><div className="flex justify-end gap-4">
+                          <button onClick={() => updateStudentData(mod.key, 'realizado')} className={`px-6 py-2 rounded-xl border transition-all ${selectedStudent[mod.key] === 'realizado' ? 'bg-green-600 border-green-400 text-white shadow-lg' : 'bg-zinc-900 border-zinc-800 text-zinc-600'}`}>REALIZADO</button>
+                          <button onClick={() => updateStudentData(mod.key, 'no_realizado')} className={`px-6 py-2 rounded-xl border transition-all ${selectedStudent[mod.key] === 'no_realizado' ? 'bg-red-600 border-red-400 text-white shadow-lg' : 'bg-zinc-900 border-zinc-800 text-zinc-600'}`}>NO REALIZADO</button>
+                        </div></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
 
             {/* HABILIDADES */}
             <div className="space-y-4">
@@ -427,15 +463,28 @@ export default function App() {
           /* --- VISTA DE LISTADOS (ALUMNOS, RESUMEN, BIBLIOTECA) --- */
           <div className="animate-in fade-in duration-700">
             {activeTab === 'alumnos' && (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                {students.map(s => (
-                  <div key={s.id} onClick={() => setSelectedStudent(s)} className="group bg-white/5 border border-white/10 p-12 rounded-[3.5rem] hover:border-red-600 transition-all cursor-pointer relative shadow-2xl overflow-hidden backdrop-blur-sm">
-                    {isAdmin && <button onClick={(e) => deleteStudent(s.id, e)} className="absolute top-8 right-8 text-zinc-700 hover:text-red-600 transition-all opacity-0 group-hover:opacity-100 z-20"><Plus className="w-5 h-5 rotate-45" /></button>}
-                    <div className="w-14 h-14 bg-white/5 rounded-2xl flex items-center justify-center group-hover:bg-red-600 transition-all mb-10 shadow-inner shadow-black/50"><User className="text-zinc-600 group-hover:text-white" /></div>
-                    <h3 className="text-3xl font-black italic uppercase tracking-tighter mb-4 leading-none">{s.name}</h3>
-                    <div className="flex justify-between items-center"><p className="text-[9px] font-black text-zinc-700 uppercase tracking-widest group-hover:text-red-500 transition-all">{s.rango || 'Academy'}</p><ChevronRight className="w-4 h-4 text-zinc-800 group-hover:text-red-600 transition-all" /></div>
-                  </div>
-                ))}
+              <div className="space-y-12">
+                {INGRESO_TIPOS.map(tipo => {
+                  const list = tipo.id === 'academia' ? academyStudents : trasladoStudents;
+                  return (
+                    <section key={tipo.id} className="space-y-6">
+                      <div className="flex items-center justify-between">
+                        <h2 className="text-3xl font-black italic uppercase tracking-tighter">{tipo.label}</h2>
+                        <span className="text-[10px] font-black text-zinc-600 uppercase tracking-widest">{list.length}</span>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                        {list.map(s => (
+                          <div key={s.id} onClick={() => setSelectedStudent(s)} className="group bg-white/5 border border-white/10 p-12 rounded-[3.5rem] hover:border-red-600 transition-all cursor-pointer relative shadow-2xl overflow-hidden backdrop-blur-sm">
+                            {isAdmin && <button onClick={(e) => deleteStudent(s.id, e)} className="absolute top-8 right-8 text-zinc-700 hover:text-red-600 transition-all opacity-0 group-hover:opacity-100 z-20"><Plus className="w-5 h-5 rotate-45" /></button>}
+                            <div className="w-14 h-14 bg-white/5 rounded-2xl flex items-center justify-center group-hover:bg-red-600 transition-all mb-10 shadow-inner shadow-black/50"><User className="text-zinc-600 group-hover:text-white" /></div>
+                            <h3 className="text-3xl font-black italic uppercase tracking-tighter mb-4 leading-none">{s.name}</h3>
+                            <div className="flex justify-between items-center"><p className="text-[9px] font-black text-zinc-700 uppercase tracking-widest group-hover:text-red-500 transition-all">{s.rango || 'Academy'}</p><ChevronRight className="w-4 h-4 text-zinc-800 group-hover:text-red-600 transition-all" /></div>
+                          </div>
+                        ))}
+                      </div>
+                    </section>
+                  );
+                })}
               </div>
             )}
             
@@ -599,6 +648,9 @@ export default function App() {
               <div className="flex justify-between items-center mb-12"><h2 className="text-4xl font-black italic uppercase tracking-tighter">Alta Aspirante</h2><button onClick={() => setIsModalOpen(false)} className="text-zinc-700 hover:text-white"><X className="w-8 h-8" /></button></div>
               <form onSubmit={handleCreateStudent} className="space-y-10">
                 <input type="text" className="w-full bg-black/40 border border-white/10 rounded-2xl py-6 px-10 outline-none focus:border-red-600 font-black uppercase italic text-white text-xl" value={newStudentName} onChange={e => setNewStudentName(e.target.value)} placeholder="NOMBRE COMPLETO" required autoFocus />
+                <select className="w-full bg-black/40 border border-white/10 rounded-2xl py-6 px-10 outline-none focus:border-red-600 font-black uppercase italic text-white text-xl" value={newStudentOrigin} onChange={e => setNewStudentOrigin(e.target.value)}>
+                  {INGRESO_TIPOS.map(tipo => <option key={tipo.id} value={tipo.id} className="bg-zinc-900">{tipo.label.toUpperCase()}</option>)}
+                </select>
                 <button type="submit" className="w-full bg-red-600 py-7 rounded-2xl font-black uppercase text-[11px] text-white">REGISTRAR EN RTD</button>
               </form>
             </div>
