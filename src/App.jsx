@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { 
   Users, LogOut, Flame, ShieldCheck, User, BarChart3, BookOpen, 
   FileText, ExternalLink, Activity, X, ChevronLeft, MessageSquare, 
@@ -63,6 +63,7 @@ export default function App() {
   const [tempHorario, setTempHorario] = useState('');
   const [tempFechaIngreso, setTempFechaIngreso] = useState('');
   const [isSavingStudent, setIsSavingStudent] = useState(false);
+  const dateInputRef = useRef(null);
   
   // Búsqueda y filtros para biblioteca
   const [searchResource, setSearchResource] = useState('');
@@ -148,6 +149,12 @@ export default function App() {
     if (!dateString) return "---";
     const date = new Date(dateString);
     return date.toLocaleDateString('es-ES');
+  };
+
+  const openDatePicker = () => {
+    if (dateInputRef.current && typeof dateInputRef.current.showPicker === 'function') {
+      dateInputRef.current.showPicker();
+    }
   };
 
   // Validar URL
@@ -512,15 +519,25 @@ export default function App() {
                </div>
                <div className="bg-white/5 border border-white/10 rounded-[3rem] p-10 backdrop-blur-md shadow-2xl md:col-span-2 lg:col-span-3">
                   <div className="text-zinc-600 text-[9px] font-black uppercase tracking-widest mb-6">Fecha de Ingreso</div>
-                  <input
-                    type="date"
-                    className="bg-black/40 border border-white/10 text-white p-3 rounded-xl w-full font-black italic uppercase outline-none focus:border-red-600 cursor-pointer"
-                    value={tempFechaIngreso}
-                    onChange={(e) => {
-                      setTempFechaIngreso(e.target.value);
-                      updateStudentData('fecha_ingreso', e.target.value);
-                    }}
-                  />
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={openDatePicker}
+                      className="bg-black/40 border border-white/10 rounded-xl p-3 text-zinc-300 hover:text-white hover:border-red-600 transition-all"
+                      aria-label="Abrir calendario de fecha de ingreso"
+                    >
+                      <Calendar className="w-5 h-5" />
+                    </button>
+                    <input
+                      ref={dateInputRef}
+                      type="date"
+                      className="bg-black/40 border border-white/10 text-white p-3 rounded-xl w-full font-black italic uppercase outline-none focus:border-red-600 cursor-pointer"
+                      value={tempFechaIngreso}
+                      onChange={(e) => setTempFechaIngreso(e.target.value)}
+                      onKeyDown={(e) => e.preventDefault()}
+                    />
+                  </div>
+                  <div className="mt-3 text-[8px] font-black uppercase tracking-widest text-zinc-500 italic">Se guarda al pulsar “Guardar ficha”.</div>
                </div>
             </div>
 
