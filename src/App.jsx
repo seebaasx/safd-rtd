@@ -98,8 +98,10 @@ export default function App() {
   }, [session]);
 
   const isAdmin = useMemo(() => session?.user?.email && ADMIN_EMAILS.some(e => e.toLowerCase().trim() === session.user.email.toLowerCase().trim()), [session]);
-  const academyStudents = useMemo(() => students.filter(student => (student.tipo_ingreso || 'academia') === 'academia'), [students]);
-  const trasladoStudents = useMemo(() => students.filter(student => student.tipo_ingreso === 'traslado'), [students]);
+  const getStudentOrigin = (student) => (student?.tipo_ingreso || 'academia').toLowerCase();
+  const academyStudents = useMemo(() => students.filter(student => getStudentOrigin(student) === 'academia'), [students]);
+  const trasladoStudents = useMemo(() => students.filter(student => getStudentOrigin(student) === 'traslado'), [students]);
+  const isTrasladoStudent = useMemo(() => getStudentOrigin(selectedStudent) === 'traslado', [selectedStudent]);
 
   const formatDate = (dateString) => {
     if (!dateString) return "---";
@@ -402,7 +404,7 @@ export default function App() {
                </div>
             </div>
 
-            {selectedStudent.tipo_ingreso !== 'traslado' && (
+            {!isTrasladoStudent && (
               <div className="bg-white/5 border border-white/10 rounded-[3rem] p-10 border-t-4 border-t-green-600 backdrop-blur-md shadow-2xl">
                 <div className="text-zinc-300 text-[10px] font-black uppercase tracking-widest mb-10 flex items-center gap-2"><Calendar className="w-4 h-4 text-green-600" /> Días Academia</div>
                 <table className="w-full text-left border-separate border-spacing-y-2">
