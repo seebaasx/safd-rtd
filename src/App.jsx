@@ -53,6 +53,7 @@ export default function App() {
   const [observations, setObservations] = useState([]);
   const [studentObservations, setStudentObservations] = useState({});
   const [newObs, setNewObs] = useState('');
+  const [activityLog, setActivityLog] = useState([]);
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newStudentName, setNewStudentName] = useState('');
@@ -99,6 +100,19 @@ export default function App() {
     document.body.appendChild(script);
   }, []);
 
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedLog = window.localStorage.getItem('rtd-control-log');
+      if (savedLog) {
+        try {
+          setActivityLog(JSON.parse(savedLog));
+        } catch {
+          setActivityLog([]);
+        }
+      }
+    }
+  }, []);
+
   useEffect(() => { if (!session) { const timer = setInterval(() => setCurrentSlide(prev => (prev + 1) % slides.length), 5000); return () => clearInterval(timer); } }, [session, slides.length]);
 
   const instructorInfo = useMemo(() => {
@@ -108,6 +122,18 @@ export default function App() {
     const rango = USER_ROLES[emailLower] || "INSTRUCTOR";
     return { name, rango, fullTag: `[${rango}] ${name}` };
   }, [session]);
+
+  const registeredUsers = useMemo(() => {
+    return Object.entries(USER_ROLES).map(([email, role]) => {
+      const name = email.split('@')[0].toUpperCase();
+      return {
+        email: email.toLowerCase(),
+        name,
+        role,
+        fullTag: `[${role}] ${name}`
+      };
+    });
+  }, []);
 
   const isAdmin = useMemo(() => session?.user?.email && ADMIN_EMAILS.some(e => e.toLowerCase().trim() === session.user.email.toLowerCase().trim()), [session]);
   const getStudentOrigin = (student) => (student?.tipo_ingreso || 'academia').toLowerCase();
@@ -193,65 +219,71 @@ export default function App() {
   }, [students, studentProgressRanking, studentObservations]);
 
   const controlBoard = useMemo(() => {
-    return studentProgressRanking.map(student => {
-      const trackedStates = [
-        student.horario,
-        student.rango,
-        student.tipo_ingreso,
-        student.fecha_ingreso,
-        student.asis_radio,
-        student.asis_auxilios,
-        student.asis_incendios,
-        student.asis_excarcelacion,
-        student.actitud,
-        student.mando,
-        student.interna,
-        student.radio,
-        student.primeros_aux,
-        student.excarcelacion_hab,
-        student.incendios_hab,
-        student.voto_instructor
-      ];
+    const dataByUser = registeredUsers.reduce((acc, user) => {
+      acc[user.email] = {
+        reports: 0,
+        changes: 0,
+        latest: null,
+        lastStudent: 'Sin miembro',
+        totalActions: 0
+      };
+      return acc;
+    }, {});
 
-      const changeCount = trackedStates.reduce((sum, value) => {
-        if (!value || value === 'no' || value === 'no_realizado') return sum;
-        if (value === 'Mañana / Tarde' || value === 'Academy' || value === 'academia') return sum;
-        return sum + 1;
-      }, 0);
+    observations.forEach(item => {
+      const matchedUser = registeredUsers.find(user => item.instructor_name?.toLowerCase().includes(user.name.toLowerCase()));
+      if (!matchedUser) return;
+      dataByUser[matchedUser.email].reports += 1;
+      const timestamp = new Date(item.created_at).getTime();
+      if (!dataByUser[matchedUser.email].latest || timestamp > new Date(dataByUser[matchedUser.email].latest).getTime()) {
+        dataByUser[matchedUser.email].latest = item.created_at;
+        dataByUser[matchedUser.email].lastStudent = students.find(student => student.id === item.student_id)?.name || 'Sin miembro';
+      }
+    });
 
-      const lastObservation = studentObservations[student.id]?.slice().sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
-      const lastUpdateDate = student.updated_at || student.created_at || lastObservation?.created_at;
-      const daysSinceUpdate = lastUpdateDate ? Math.max(0, Math.floor((Date.now() - new Date(lastUpdateDate)) / (1000 * 60 * 60 * 24))) : null;
-      const weeklyActivity = daysSinceUpdate !== null && daysSinceUpdate <= 7 ? Math.max(1, Math.round(changeCount / Math.max(1, Math.min(daysSinceUpdate + 1, 7)))) : 0;
-      const changeRatePerDay = student.daysInProgram > 0 ? (changeCount / student.daysInProgram).toFixed(2) : '0.00';
+    activityLog.forEach(item => {
+      const user = registeredUsers.find(candidate => candidate.email === item.email);
+      if (!user) return;
+      if (item.type === 'informe') dataByUser[user.email].reports += 1;
+      if (item.type === 'change' || item.type === 'save') dataByUser[user.email].changes += 1;
+      const timestamp = new Date(item.created_at).getTime();
+      if (!dataByUser[user.email].latest || timestamp > new Date(dataByUser[user.email].latest).getTime()) {
+        dataByUser[user.email].latest = item.created_at;
+        dataByUser[user.email].lastStudent = item.studentName || 'Sin miembro';
+      }
+    });
+
+    return registeredUsers.map(user => {
+      const userStats = dataByUser[user.email];
+      const reports = userStats.reports || 0;
+      const changes = userStats.changes || 0;
+      const totalActions = reports + changes;
+      const latest = userStats.latest;
+      const daysSinceAction = latest ? Math.max(0, Math.floor((Date.now() - new Date(latest)) / (1000 * 60 * 60 * 24))) : null;
 
       return {
-        ...student,
-        changeCount,
-        lastObservation,
-        informeCount: student.observationCount,
-        lastUpdateDate,
-        daysSinceUpdate,
-        weeklyActivity,
-        changeRatePerDay
+        ...user,
+        reports,
+        changes,
+        totalActions,
+        latest,
+        daysSinceAction,
+        lastStudent: userStats.lastStudent || 'Sin miembro'
       };
-    }).sort((a, b) => {
-      if (b.informeCount !== a.informeCount) return b.informeCount - a.informeCount;
-      if (b.weeklyActivity !== a.weeklyActivity) return b.weeklyActivity - a.weeklyActivity;
-      return b.changeCount - a.changeCount;
-    });
-  }, [studentProgressRanking, studentObservations]);
+    }).sort((a, b) => b.totalActions - a.totalActions || b.reports - a.reports || b.changes - a.changes);
+  }, [registeredUsers, observations, activityLog, students]);
 
   const filteredControlBoard = useMemo(() => {
     if (controlFilter === 'todos') return controlBoard;
-    return controlBoard.filter(student => getStudentOrigin(student) === controlFilter);
+    if (controlFilter === 'activos') return controlBoard.filter(user => user.totalActions > 0);
+    return controlBoard.filter(user => user.totalActions === 0);
   }, [controlBoard, controlFilter]);
 
   const controlMetrics = useMemo(() => {
-    const totalReports = filteredControlBoard.reduce((sum, student) => sum + student.informeCount, 0);
-    const totalChanges = filteredControlBoard.reduce((sum, student) => sum + student.changeCount, 0);
-    const recentActivity = filteredControlBoard.filter(student => student.daysSinceUpdate !== null && student.daysSinceUpdate <= 7).length;
-    const mostActive = [...filteredControlBoard].sort((a, b) => b.weeklyActivity - a.weeklyActivity)[0] || null;
+    const totalReports = filteredControlBoard.reduce((sum, user) => sum + user.reports, 0);
+    const totalChanges = filteredControlBoard.reduce((sum, user) => sum + user.changes, 0);
+    const recentActivity = filteredControlBoard.filter(user => user.daysSinceAction !== null && user.daysSinceAction <= 7).length;
+    const mostActive = [...filteredControlBoard].sort((a, b) => b.totalActions - a.totalActions)[0] || null;
 
     return { totalReports, totalChanges, recentActivity, mostActive };
   }, [filteredControlBoard]);
@@ -362,6 +394,22 @@ export default function App() {
     }
 
     setSelectedStudent({ ...selectedStudent, ...updatePayload });
+    if (session?.user?.email) {
+      const activityEntry = {
+        id: `change-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        email: session.user.email.toLowerCase(),
+        type: 'change',
+        created_at: new Date().toISOString(),
+        studentId: selectedStudent.id,
+        studentName: selectedStudent.name,
+        column,
+        value: finalValue,
+        actor: instructorInfo.fullTag
+      };
+      const nextLog = [activityEntry, ...activityLog].slice(0, 500);
+      setActivityLog(nextLog);
+      if (typeof window !== 'undefined') window.localStorage.setItem('rtd-control-log', JSON.stringify(nextLog));
+    }
     fetchAllData();
   };
 
@@ -382,6 +430,20 @@ export default function App() {
       if (error) throw error;
 
       setSelectedStudent({ ...selectedStudent, ...payload });
+      if (session?.user?.email) {
+        const saveEntry = {
+          id: `save-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          email: session.user.email.toLowerCase(),
+          type: 'save',
+          created_at: new Date().toISOString(),
+          studentId: selectedStudent.id,
+          studentName: selectedStudent.name,
+          actor: instructorInfo.fullTag
+        };
+        const nextLog = [saveEntry, ...activityLog].slice(0, 500);
+        setActivityLog(nextLog);
+        if (typeof window !== 'undefined') window.localStorage.setItem('rtd-control-log', JSON.stringify(nextLog));
+      }
       await fetchAllData();
       alert('Ficha guardada correctamente');
     } catch (error) {
@@ -548,7 +610,25 @@ export default function App() {
   const sendObservation = async () => {
     if (!newObs.trim()) return;
     const { data } = await supabase.from('observations').insert([{ student_id: selectedStudent.id, instructor_name: instructorInfo.fullTag, content: newObs }]).select();
-    setObservations([...observations, data[0]]); setNewObs('');
+    const nextObs = [...observations, data[0]];
+    setObservations(nextObs); 
+    setNewObs('');
+
+    if (session?.user?.email) {
+      const activityEntry = {
+        id: `report-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        email: session.user.email.toLowerCase(),
+        type: 'informe',
+        created_at: new Date().toISOString(),
+        studentId: selectedStudent.id,
+        studentName: selectedStudent.name,
+        actor: instructorInfo.fullTag,
+        detail: newObs.trim()
+      };
+      const nextLog = [activityEntry, ...activityLog].slice(0, 500);
+      setActivityLog(nextLog);
+      if (typeof window !== 'undefined') window.localStorage.setItem('rtd-control-log', JSON.stringify(nextLog));
+    }
   };
 
   const handleLogin = async (e) => {
@@ -969,13 +1049,13 @@ export default function App() {
                   <div className="bg-white/5 border border-white/10 rounded-[2rem] p-6 backdrop-blur-md shadow-xl">
                     <div className="text-[9px] font-black uppercase tracking-widest text-zinc-500 italic mb-4">Filtro de control</div>
                     <div className="flex gap-3 flex-wrap">
-                      {['todos', 'academia', 'traslado'].map(option => (
+                      {['todos', 'activos', 'inactivos'].map(option => (
                         <button
                           key={option}
                           onClick={() => setControlFilter(option)}
                           className={`px-5 py-3 rounded-full text-[9px] font-black uppercase tracking-widest transition-all ${controlFilter === option ? 'bg-red-600 text-white' : 'bg-black/20 border border-white/10 text-zinc-400 hover:text-white'}`}
                         >
-                          {option === 'todos' ? 'TODOS' : option === 'academia' ? 'ACADEMIA' : 'TRASLADO'}
+                          {option === 'todos' ? 'TODOS' : option === 'activos' ? 'ACTIVOS' : 'SIN ACTIVIDAD'}
                         </button>
                       ))}
                     </div>
@@ -984,7 +1064,7 @@ export default function App() {
                     <div className="text-[9px] font-black uppercase tracking-widest text-red-500 italic mb-3">TOP ACTUALIZACIÓN RECIENTE</div>
                     <div className="text-2xl font-black italic uppercase tracking-tighter">{controlMetrics.mostActive ? controlMetrics.mostActive.name : 'Sin actividad'}</div>
                     <div className="mt-2 text-[10px] font-black uppercase tracking-widest text-zinc-500 italic">
-                      {controlMetrics.mostActive ? `${controlMetrics.mostActive.weeklyActivity} cambios en 7 días` : 'Sin actividad reciente'}
+                      {controlMetrics.mostActive ? `${controlMetrics.mostActive.totalActions} acciones totales` : 'Sin actividad reciente'}
                     </div>
                   </div>
                 </div>
@@ -1002,35 +1082,29 @@ export default function App() {
                     <table className="min-w-full text-left border-separate border-spacing-0">
                       <thead className="bg-black/40">
                         <tr className="text-[9px] font-black uppercase tracking-widest text-zinc-500 italic">
-                          <th className="px-4 py-4">Miembro</th>
-                          <th className="px-4 py-4">Ingreso</th>
+                          <th className="px-4 py-4">Usuario</th>
+                          <th className="px-4 py-4">Correo</th>
+                          <th className="px-4 py-4">Rol</th>
                           <th className="px-4 py-4">Informes</th>
                           <th className="px-4 py-4">Cambios</th>
-                          <th className="px-4 py-4">Cambio/día</th>
-                          <th className="px-4 py-4">Act. 7d</th>
-                          <th className="px-4 py-4">Último cambio</th>
-                          <th className="px-4 py-4">Rango</th>
-                          <th className="px-4 py-4">Estado</th>
+                          <th className="px-4 py-4">Acciones</th>
+                          <th className="px-4 py-4">Último registro</th>
+                          <th className="px-4 py-4">Miembro afectado</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {filteredControlBoard.map((student, index) => (
-                          <tr key={student.id} className="border-b border-white/5 bg-white/[0.02] hover:bg-white/[0.05] transition-all">
+                        {filteredControlBoard.map((user, index) => (
+                          <tr key={user.email} className="border-b border-white/5 bg-white/[0.02] hover:bg-white/[0.05] transition-all">
                             <td className="px-4 py-4">
-                              <div className="text-[11px] font-black uppercase tracking-tighter text-white">{index + 1}. {student.name}</div>
+                              <div className="text-[11px] font-black uppercase tracking-tighter text-white">{index + 1}. {user.name}</div>
                             </td>
-                            <td className="px-4 py-4 text-[10px] font-black uppercase tracking-widest text-zinc-400 italic">{formatDate(student.fecha_ingreso || student.created_at)}</td>
-                            <td className="px-4 py-4 text-[10px] font-black uppercase tracking-widest text-emerald-400 italic">{student.informeCount}</td>
-                            <td className="px-4 py-4 text-[10px] font-black uppercase tracking-widest text-sky-400 italic">{student.changeCount}</td>
-                            <td className="px-4 py-4 text-[10px] font-black uppercase tracking-widest text-amber-400 italic">{student.changeRatePerDay}</td>
-                            <td className="px-4 py-4 text-[10px] font-black uppercase tracking-widest text-fuchsia-400 italic">{student.weeklyActivity}</td>
-                            <td className="px-4 py-4 text-[10px] font-black uppercase tracking-widest text-amber-400 italic">{student.lastUpdateDate ? formatDate(student.lastUpdateDate) : 'Sin actividad'}</td>
-                            <td className="px-4 py-4 text-[10px] font-black uppercase tracking-widest text-zinc-400 italic">{student.rango || 'Academy'}</td>
-                            <td className="px-4 py-4 text-[10px] font-black uppercase tracking-widest italic">
-                              <span className={`rounded-full px-3 py-1 ${student.voto_instructor === 'apto' ? 'bg-green-600/20 text-green-400' : student.voto_instructor === 'no_apto' ? 'bg-red-600/20 text-red-400' : 'bg-yellow-600/20 text-yellow-400'}`}>
-                                {student.voto_instructor === 'apto' ? 'APTO' : student.voto_instructor === 'no_apto' ? 'NO APTO' : 'EVALUANDO'}
-                              </span>
-                            </td>
+                            <td className="px-4 py-4 text-[10px] font-black uppercase tracking-widest text-zinc-400 italic">{user.email}</td>
+                            <td className="px-4 py-4 text-[10px] font-black uppercase tracking-widest text-zinc-400 italic">{user.role}</td>
+                            <td className="px-4 py-4 text-[10px] font-black uppercase tracking-widest text-emerald-400 italic">{user.reports}</td>
+                            <td className="px-4 py-4 text-[10px] font-black uppercase tracking-widest text-sky-400 italic">{user.changes}</td>
+                            <td className="px-4 py-4 text-[10px] font-black uppercase tracking-widest text-amber-400 italic">{user.totalActions}</td>
+                            <td className="px-4 py-4 text-[10px] font-black uppercase tracking-widest text-amber-400 italic">{user.latest ? formatDate(user.latest) : 'Sin actividad'}</td>
+                            <td className="px-4 py-4 text-[10px] font-black uppercase tracking-widest text-zinc-400 italic">{user.lastStudent || 'Sin miembro'}</td>
                           </tr>
                         ))}
                       </tbody>
