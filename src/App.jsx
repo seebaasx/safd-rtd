@@ -35,6 +35,12 @@ const USER_ROLES = {
 const RANGOS_ACADEMIA = ["Academy", "Probationary", "Ascendido", "Suspendido"];
 const ACADEMIC_MODULES = ['asis_radio', 'asis_auxilios', 'asis_incendios', 'asis_excarcelacion'];
 const FIELD_SKILLS = ['actitud', 'mando', 'interna', 'radio', 'primeros_aux', 'excarcelacion_hab', 'incendios_hab'];
+const MODULE_LABELS = {
+  asis_radio: 'RADIO & DISPATCH',
+  asis_auxilios: 'PRIMEROS AUXILIOS',
+  asis_incendios: 'INCENDIOS',
+  asis_excarcelacion: 'EXCARCELACIÓN'
+};
 
 export default function App() {
   const [supabase, setSupabase] = useState(null);
@@ -114,6 +120,7 @@ export default function App() {
         const completedModules = ACADEMIC_MODULES.filter(key => student[key] === 'realizado').length;
         const masteredSkills = FIELD_SKILLS.filter(key => student[key] === 'aprendido').length;
         const currentSkills = FIELD_SKILLS.filter(key => student[key] === 'cursando').length;
+        const activeSkills = masteredSkills + currentSkills;
         const pendingSkills = FIELD_SKILLS.filter(key => student[key] === 'no' || !student[key]).length;
         const observationCount = studentObservations[student.id]?.length || 0;
         const fechaBase = student.fecha_ingreso || student.created_at;
@@ -126,20 +133,29 @@ export default function App() {
         const commentProgress = Math.min(observationCount, 5) / 5 * 10;
         const voteBonus = student.voto_instructor === 'apto' ? 5 : 0;
         const progressPercent = Math.min(100, Math.round(moduleProgress + skillProgress + commentProgress + voteBonus));
+        const leadershipScore = Math.round(
+          (masteredSkills * 2.5) +
+          (currentSkills * 2) +
+          (completedModules * 3) +
+          (observationCount * 1.5) +
+          voteBonus
+        );
 
         return {
           ...student,
           completedModules,
           masteredSkills,
           currentSkills,
+          activeSkills,
           pendingSkills,
           observationCount,
           totalSkills: FIELD_SKILLS.length,
           daysInProgram,
-          progressPercent
+          progressPercent,
+          leadershipScore
         };
       })
-      .sort((a, b) => b.progressPercent - a.progressPercent);
+      .sort((a, b) => b.leadershipScore - a.leadershipScore);
   }, [students, studentObservations]);
 
   const summaryStats = useMemo(() => {
@@ -174,6 +190,25 @@ export default function App() {
       totalSkills: FIELD_SKILLS.length * totalStudents
     };
   }, [students, studentProgressRanking, studentObservations]);
+
+  const moduleSummary = useMemo(() => {
+    return ACADEMIC_MODULES.map(key => {
+      const completed = students.filter(student => student[key] === 'realizado').length;
+      const total = students.length || 1;
+      return {
+        key,
+        label: MODULE_LABELS[key],
+        completed,
+        percentage: Math.round((completed / total) * 100)
+      };
+    });
+  }, [students]);
+
+  const priorityStudents = useMemo(() => {
+    return [...studentProgressRanking]
+      .sort((a, b) => a.progressPercent - b.progressPercent)
+      .slice(0, 4);
+  }, [studentProgressRanking]);
 
   const topProgressStudent = studentProgressRanking[0] || null;
 
@@ -690,7 +725,7 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
                   <div className="bg-white/5 border border-red-600/20 rounded-[3rem] p-8 backdrop-blur-md shadow-2xl">
                     <div className="text-[10px] font-black uppercase tracking-widest text-red-500 italic mb-4">LÍDER DE EVOLUCIÓN</div>
                     <h3 className="text-4xl font-black italic uppercase tracking-tighter mb-4">{topProgressStudent ? topProgressStudent.name : 'Sin datos'}</h3>
@@ -700,9 +735,27 @@ export default function App() {
                         <div className="text-3xl font-black italic text-red-500">{topProgressStudent ? topProgressStudent.daysInProgram : 0}</div>
                       </div>
                       <div className="bg-black/30 rounded-[1.5rem] p-4 border border-white/5 text-center">
-                        <div className="text-[9px] font-black uppercase tracking-widest text-zinc-500 italic">Habilidades</div>
-                        <div className="text-3xl font-black italic text-red-500">{topProgressStudent ? `${topProgressStudent.masteredSkills}/${topProgressStudent.totalSkills}` : '0/0'}</div>
+                        <div className="text-[9px] font-black uppercase tracking-widest text-zinc-500 italic">Habilidades activas</div>
+                        <div className="text-3xl font-black italic text-red-500">{topProgressStudent ? `${topProgressStudent.activeSkills}/${topProgressStudent.totalSkills}` : '0/0'}</div>
                       </div>
+                    </div>
+                    <div className="mt-4 text-[9px] font-black uppercase tracking-widest text-zinc-500 italic">Score de liderazgo: {topProgressStudent ? topProgressStudent.leadershipScore : 0}</div>
+                  </div>
+
+                  <div className="bg-white/5 border border-white/10 rounded-[3rem] p-8 backdrop-blur-md shadow-2xl">
+                    <div className="text-[10px] font-black uppercase tracking-widest text-zinc-500 italic mb-5">ATENCIÓN PRIORITARIA</div>
+                    <div className="space-y-3">
+                      {priorityStudents.map((student, index) => (
+                        <div key={student.id} className="bg-black/30 rounded-[1.5rem] p-4 border border-white/5">
+                          <div className="flex items-center justify-between gap-3 mb-2">
+                            <div className="text-[10px] font-black uppercase tracking-widest text-zinc-400 italic">#{index + 1} · {student.name}</div>
+                            <div className="text-[10px] font-black uppercase tracking-widest text-red-400 italic">{student.progressPercent}%</div>
+                          </div>
+                          <div className="h-1.5 bg-black/40 rounded-full overflow-hidden">
+                            <div className="h-full bg-amber-500 rounded-full" style={{ width: `${student.progressPercent}%` }} />
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
 
@@ -725,38 +778,95 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="bg-white/5 border border-red-600/20 rounded-[3rem] p-10 backdrop-blur-md shadow-2xl">
-                  <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6 mb-8">
-                    <div>
-                      <div className="text-[10px] font-black uppercase tracking-widest text-red-500 italic mb-2">TOP 3 EVOLUCIÓN</div>
-                      <h3 className="text-3xl font-black italic uppercase tracking-tighter">Control de desarrollo</h3>
-                    </div>
-                    <div className="text-[10px] font-black uppercase tracking-widest text-zinc-500 italic">Habilidades: {summaryStats.masteredTotal} aprendidas · {summaryStats.currentTotal} cursando · {summaryStats.pendingTotal} pendientes</div>
-                  </div>
-
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    {studentProgressRanking.slice(0, 3).map((student, index) => {
-                      const medalColor = index === 0 ? 'text-red-500' : index === 1 ? 'text-amber-400' : 'text-sky-400';
-                      return (
-                        <div key={student.id} className={`rounded-[2rem] border p-6 backdrop-blur-md ${index === 0 ? 'bg-red-600/10 border-red-600/40' : index === 1 ? 'bg-amber-500/10 border-amber-500/30' : 'bg-sky-500/10 border-sky-500/30'}`}>
-                          <div className="flex items-center justify-between mb-4">
-                            <div className={`text-[11px] font-black uppercase tracking-widest ${medalColor} italic`}>#{index + 1}</div>
-                            <div className="text-[9px] font-black uppercase tracking-widest text-zinc-500 italic">{student.rango || 'Academy'}</div>
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                  <div className="bg-white/5 border border-white/10 rounded-[3rem] p-8 backdrop-blur-md shadow-2xl">
+                    <div className="text-[10px] font-black uppercase tracking-widest text-zinc-500 italic mb-5">AVANCE POR MÓDULO</div>
+                    <div className="space-y-4">
+                      {moduleSummary.map(item => (
+                        <div key={item.key} className="bg-black/30 rounded-[1.5rem] p-4 border border-white/5">
+                          <div className="flex items-center justify-between gap-3 mb-2">
+                            <div className="text-[10px] font-black uppercase tracking-widest text-zinc-400 italic">{item.label}</div>
+                            <div className="text-[10px] font-black uppercase tracking-widest text-emerald-400 italic">{item.completed}/{summaryStats.totalStudents}</div>
                           </div>
-                          <h4 className="text-2xl font-black italic uppercase tracking-tighter mb-2">{student.name}</h4>
-                          <div className="text-[10px] font-black uppercase tracking-widest text-zinc-400 italic mb-4">Progreso: {student.progressPercent}%</div>
-                          <div className="h-2 rounded-full bg-black/40 overflow-hidden mb-4">
-                            <div className="h-full rounded-full bg-gradient-to-r from-red-600 to-orange-400" style={{ width: `${student.progressPercent}%` }} />
-                          </div>
-                          <div className="grid grid-cols-4 gap-2 text-[9px] font-black uppercase tracking-widest text-zinc-300">
-                            <div className="bg-black/30 rounded-2xl p-3 text-center">Días: {student.daysInProgram}</div>
-                            <div className="bg-black/30 rounded-2xl p-3 text-center">Apr.: {student.masteredSkills}</div>
-                            <div className="bg-black/30 rounded-2xl p-3 text-center">Cur.: {student.currentSkills}</div>
-                            <div className="bg-black/30 rounded-2xl p-3 text-center">Com.: {student.observationCount}</div>
+                          <div className="h-2 bg-black/40 rounded-full overflow-hidden">
+                            <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${item.percentage}%` }} />
                           </div>
                         </div>
-                      );
-                    })}
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="bg-white/5 border border-red-600/20 rounded-[3rem] p-8 backdrop-blur-md shadow-2xl">
+                    <div className="text-[10px] font-black uppercase tracking-widest text-red-500 italic mb-5">TOP 3 EVOLUCIÓN</div>
+                    <div className="grid grid-cols-1 gap-4">
+                      {studentProgressRanking.slice(0, 3).map((student, index) => {
+                        const medalColor = index === 0 ? 'text-red-500' : index === 1 ? 'text-amber-400' : 'text-sky-400';
+                        return (
+                          <div key={student.id} className={`rounded-[2rem] border p-5 backdrop-blur-md ${index === 0 ? 'bg-red-600/10 border-red-600/40' : index === 1 ? 'bg-amber-500/10 border-amber-500/30' : 'bg-sky-500/10 border-sky-500/30'}`}>
+                            <div className="flex items-center justify-between mb-3">
+                              <div className={`text-[11px] font-black uppercase tracking-widest ${medalColor} italic`}>#{index + 1}</div>
+                              <div className="text-[9px] font-black uppercase tracking-widest text-zinc-500 italic">{student.rango || 'Academy'}</div>
+                            </div>
+                            <h4 className="text-2xl font-black italic uppercase tracking-tighter mb-2">{student.name}</h4>
+                            <div className="text-[10px] font-black uppercase tracking-widest text-zinc-400 italic mb-3">Progreso: {student.progressPercent}%</div>
+                            <div className="h-2 rounded-full bg-black/40 overflow-hidden mb-3">
+                              <div className="h-full rounded-full bg-gradient-to-r from-red-600 to-orange-400" style={{ width: `${student.progressPercent}%` }} />
+                            </div>
+                            <div className="grid grid-cols-4 gap-2 text-[9px] font-black uppercase tracking-widest text-zinc-300">
+                              <div className="bg-black/30 rounded-2xl p-3 text-center">Días: {student.daysInProgram}</div>
+                              <div className="bg-black/30 rounded-2xl p-3 text-center">Apr.: {student.masteredSkills}</div>
+                              <div className="bg-black/30 rounded-2xl p-3 text-center">Cur.: {student.currentSkills}</div>
+                              <div className="bg-black/30 rounded-2xl p-3 text-center">Act.: {student.activeSkills}</div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-white/5 border border-white/10 rounded-[3rem] p-8 backdrop-blur-md shadow-2xl">
+                  <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6">
+                    <div>
+                      <div className="text-[10px] font-black uppercase tracking-widest text-zinc-500 italic mb-2">COMPARATIVA COMPLETA</div>
+                      <h3 className="text-3xl font-black italic uppercase tracking-tighter">Estado real de cada expediente</h3>
+                    </div>
+                    <div className="text-[10px] font-black uppercase tracking-widest text-zinc-500 italic">{summaryStats.totalStudents} fichas visibles</div>
+                  </div>
+
+                  <div className="overflow-x-auto rounded-[2rem] border border-white/10">
+                    <table className="min-w-full text-left border-separate border-spacing-0">
+                      <thead className="bg-black/40">
+                        <tr className="text-[9px] font-black uppercase tracking-widest text-zinc-500 italic">
+                          <th className="px-4 py-4">#</th>
+                          <th className="px-4 py-4">Nombre</th>
+                          <th className="px-4 py-4">Ingreso</th>
+                          <th className="px-4 py-4">Días</th>
+                          <th className="px-4 py-4">Progreso</th>
+                          <th className="px-4 py-4">Skills</th>
+                          <th className="px-4 py-4">Comentarios</th>
+                          <th className="px-4 py-4">Estado</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {studentProgressRanking.map((student, index) => (
+                          <tr key={student.id} className="border-b border-white/5 bg-white/[0.02] hover:bg-white/[0.05] transition-all">
+                            <td className="px-4 py-4 text-[10px] font-black uppercase tracking-widest text-zinc-500 italic">{index + 1}</td>
+                            <td className="px-4 py-4 text-[11px] font-black uppercase tracking-tighter text-white">{student.name}</td>
+                            <td className="px-4 py-4 text-[10px] font-black uppercase tracking-widest text-zinc-400 italic">{student.tipo_ingreso || 'academia'}</td>
+                            <td className="px-4 py-4 text-[10px] font-black uppercase tracking-widest text-amber-400 italic">{student.daysInProgram}</td>
+                            <td className="px-4 py-4 text-[10px] font-black uppercase tracking-widest text-red-400 italic">{student.progressPercent}%</td>
+                            <td className="px-4 py-4 text-[10px] font-black uppercase tracking-widest text-emerald-400 italic">{student.activeSkills}/{student.totalSkills}</td>
+                            <td className="px-4 py-4 text-[10px] font-black uppercase tracking-widest text-sky-400 italic">{student.observationCount}</td>
+                            <td className="px-4 py-4 text-[10px] font-black uppercase tracking-widest italic">
+                              <span className={`rounded-full px-3 py-1 ${student.voto_instructor === 'apto' ? 'bg-green-600/20 text-green-400' : student.voto_instructor === 'no_apto' ? 'bg-red-600/20 text-red-400' : 'bg-yellow-600/20 text-yellow-400'}`}>
+                                {student.voto_instructor === 'apto' ? 'APTO' : student.voto_instructor === 'no_apto' ? 'NO APTO' : 'EVALUANDO'}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               </div>
