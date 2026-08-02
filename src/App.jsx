@@ -191,6 +191,47 @@ export default function App() {
     };
   }, [students, studentProgressRanking, studentObservations]);
 
+  const controlBoard = useMemo(() => {
+    return studentProgressRanking.map(student => {
+      const trackedStates = [
+        student.horario,
+        student.rango,
+        student.tipo_ingreso,
+        student.fecha_ingreso,
+        student.asis_radio,
+        student.asis_auxilios,
+        student.asis_incendios,
+        student.asis_excarcelacion,
+        student.actitud,
+        student.mando,
+        student.interna,
+        student.radio,
+        student.primeros_aux,
+        student.excarcelacion_hab,
+        student.incendios_hab,
+        student.voto_instructor
+      ];
+
+      const changeCount = trackedStates.reduce((sum, value) => {
+        if (!value || value === 'no' || value === 'no_realizado') return sum;
+        if (value === 'Mañana / Tarde' || value === 'Academy' || value === 'academia') return sum;
+        return sum + 1;
+      }, 0);
+
+      const lastObservation = studentObservations[student.id]?.slice().sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
+
+      return {
+        ...student,
+        changeCount,
+        lastObservation,
+        informeCount: student.observationCount
+      };
+    }).sort((a, b) => {
+      if (b.informeCount !== a.informeCount) return b.informeCount - a.informeCount;
+      return b.changeCount - a.changeCount;
+    });
+  }, [studentProgressRanking, studentObservations]);
+
   const moduleSummary = useMemo(() => {
     return ACADEMIC_MODULES.map(key => {
       const completed = students.filter(student => student[key] === 'realizado').length;
@@ -532,6 +573,9 @@ export default function App() {
         <nav className="flex flex-row md:flex-col gap-3 md:gap-8">
           <button onClick={() => { setActiveTab('alumnos'); setSelectedStudent(null); }} className={`p-3 md:p-4 rounded-2xl transition-all ${activeTab === 'alumnos' ? 'bg-red-600 text-white shadow-xl shadow-red-600/10' : 'text-zinc-600 hover:text-white'}`}><Users className="w-5 h-5 md:w-6 md:h-6" /></button>
           <button onClick={() => { setActiveTab('progreso'); setSelectedStudent(null); }} className={`p-3 md:p-4 rounded-2xl transition-all ${activeTab === 'progreso' ? 'bg-red-600 text-white shadow-xl shadow-red-600/10' : 'text-zinc-600 hover:text-white'}`}><BarChart3 className="w-5 h-5 md:w-6 md:h-6" /></button>
+          {isAdmin && (
+            <button onClick={() => { setActiveTab('control'); setSelectedStudent(null); }} className={`p-3 md:p-4 rounded-2xl transition-all ${activeTab === 'control' ? 'bg-red-600 text-white shadow-xl shadow-red-600/10' : 'text-zinc-600 hover:text-white'}`}><ShieldCheck className="w-5 h-5 md:w-6 md:h-6" /></button>
+          )}
           <button onClick={() => { setActiveTab('recursos'); setSelectedStudent(null); }} className={`p-3 md:p-4 rounded-2xl transition-all ${activeTab === 'recursos' ? 'bg-red-600 text-white shadow-xl shadow-red-600/10' : 'text-zinc-600 hover:text-white'}`}><BookOpen className="w-5 h-5 md:w-6 md:h-6" /></button>
         </nav>
         <button onClick={() => { supabase.auth.signOut(); window.localStorage.clear(); window.location.reload(); }} className="ml-auto md:ml-0 md:mt-auto p-3 md:p-4 text-zinc-800 hover:text-red-600 transition-all"><LogOut className="w-5 h-5 md:w-6 md:h-6" /></button>
@@ -542,7 +586,7 @@ export default function App() {
           <div className="inline-flex items-center gap-2 bg-red-600/10 text-red-600 px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border border-red-600/20 mb-6 md:mb-8 italic backdrop-blur-md">{instructorInfo.fullTag}</div>
           <div className="flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-end">
             <h1 className="text-5xl sm:text-6xl md:text-[9rem] font-black italic uppercase tracking-tighter leading-[0.8] drop-shadow-2xl">
-               {selectedStudent ? selectedStudent.name : activeTab === 'alumnos' ? 'EXPEDIENTES' : activeTab === 'progreso' ? 'RESUMEN' : 'BIBLIOTECA'}
+               {selectedStudent ? selectedStudent.name : activeTab === 'alumnos' ? 'EXPEDIENTES' : activeTab === 'progreso' ? 'RESUMEN' : activeTab === 'control' ? 'CONTROL' : 'BIBLIOTECA'}
             </h1>
             {isAdmin && !selectedStudent && activeTab === 'alumnos' && (
               <button onClick={() => setIsModalOpen(true)} className="bg-white text-black px-6 py-3 md:px-8 md:py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-red-600 hover:text-white transition-all shadow-xl self-start sm:self-auto">+ ALTA ASPIRANTE</button>
@@ -858,6 +902,73 @@ export default function App() {
                             <td className="px-4 py-4 text-[10px] font-black uppercase tracking-widest text-red-400 italic">{student.progressPercent}%</td>
                             <td className="px-4 py-4 text-[10px] font-black uppercase tracking-widest text-emerald-400 italic">{student.activeSkills}/{student.totalSkills}</td>
                             <td className="px-4 py-4 text-[10px] font-black uppercase tracking-widest text-sky-400 italic">{student.observationCount}</td>
+                            <td className="px-4 py-4 text-[10px] font-black uppercase tracking-widest italic">
+                              <span className={`rounded-full px-3 py-1 ${student.voto_instructor === 'apto' ? 'bg-green-600/20 text-green-400' : student.voto_instructor === 'no_apto' ? 'bg-red-600/20 text-red-400' : 'bg-yellow-600/20 text-yellow-400'}`}>
+                                {student.voto_instructor === 'apto' ? 'APTO' : student.voto_instructor === 'no_apto' ? 'NO APTO' : 'EVALUANDO'}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'control' && (
+              <div className="space-y-8">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="bg-white/5 border border-white/10 rounded-[2rem] p-6 backdrop-blur-md shadow-xl">
+                    <div className="text-[9px] font-black uppercase tracking-widest text-zinc-500 italic mb-3">Miembros RTD</div>
+                    <div className="text-4xl font-black italic text-red-500 mb-1">{summaryStats.totalStudents}</div>
+                    <div className="text-[10px] font-black uppercase tracking-widest text-zinc-600 italic">Total visibles</div>
+                  </div>
+                  <div className="bg-white/5 border border-emerald-900/20 rounded-[2rem] p-6 backdrop-blur-md shadow-xl">
+                    <div className="text-[9px] font-black uppercase tracking-widest text-zinc-500 italic mb-3">Informes realizados</div>
+                    <div className="text-4xl font-black italic text-emerald-400 mb-1">{summaryStats.totalObservations}</div>
+                    <div className="text-[10px] font-black uppercase tracking-widest text-zinc-600 italic">Registros activos</div>
+                  </div>
+                  <div className="bg-white/5 border border-sky-900/20 rounded-[2rem] p-6 backdrop-blur-md shadow-xl">
+                    <div className="text-[9px] font-black uppercase tracking-widest text-zinc-500 italic mb-3">Cambios detectados</div>
+                    <div className="text-4xl font-black italic text-sky-400 mb-1">{controlBoard.reduce((sum, item) => sum + item.changeCount, 0)}</div>
+                    <div className="text-[10px] font-black uppercase tracking-widest text-zinc-600 italic">En fichas</div>
+                  </div>
+                </div>
+
+                <div className="bg-white/5 border border-white/10 rounded-[3rem] p-6 md:p-8 backdrop-blur-md shadow-2xl">
+                  <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6">
+                    <div>
+                      <div className="text-[10px] font-black uppercase tracking-widest text-zinc-500 italic mb-2">CONTROL ADMINISTRATIVO</div>
+                      <h3 className="text-3xl font-black italic uppercase tracking-tighter">Seguimiento por miembro de RTD</h3>
+                    </div>
+                    <div className="text-[10px] font-black uppercase tracking-widest text-zinc-500 italic">Ranking ponderado por informes y cambios</div>
+                  </div>
+
+                  <div className="overflow-x-auto rounded-[2rem] border border-white/10">
+                    <table className="min-w-full text-left border-separate border-spacing-0">
+                      <thead className="bg-black/40">
+                        <tr className="text-[9px] font-black uppercase tracking-widest text-zinc-500 italic">
+                          <th className="px-4 py-4">Miembro</th>
+                          <th className="px-4 py-4">Ingreso</th>
+                          <th className="px-4 py-4">Informes</th>
+                          <th className="px-4 py-4">Cambios</th>
+                          <th className="px-4 py-4">Último informe</th>
+                          <th className="px-4 py-4">Rango</th>
+                          <th className="px-4 py-4">Estado</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {controlBoard.map((student, index) => (
+                          <tr key={student.id} className="border-b border-white/5 bg-white/[0.02] hover:bg-white/[0.05] transition-all">
+                            <td className="px-4 py-4">
+                              <div className="text-[11px] font-black uppercase tracking-tighter text-white">{index + 1}. {student.name}</div>
+                            </td>
+                            <td className="px-4 py-4 text-[10px] font-black uppercase tracking-widest text-zinc-400 italic">{formatDate(student.fecha_ingreso || student.created_at)}</td>
+                            <td className="px-4 py-4 text-[10px] font-black uppercase tracking-widest text-emerald-400 italic">{student.informeCount}</td>
+                            <td className="px-4 py-4 text-[10px] font-black uppercase tracking-widest text-sky-400 italic">{student.changeCount}</td>
+                            <td className="px-4 py-4 text-[10px] font-black uppercase tracking-widest text-amber-400 italic">{student.lastObservation ? formatDate(student.lastObservation.created_at) : 'Sin informe'}</td>
+                            <td className="px-4 py-4 text-[10px] font-black uppercase tracking-widest text-zinc-400 italic">{student.rango || 'Academy'}</td>
                             <td className="px-4 py-4 text-[10px] font-black uppercase tracking-widest italic">
                               <span className={`rounded-full px-3 py-1 ${student.voto_instructor === 'apto' ? 'bg-green-600/20 text-green-400' : student.voto_instructor === 'no_apto' ? 'bg-red-600/20 text-red-400' : 'bg-yellow-600/20 text-yellow-400'}`}>
                                 {student.voto_instructor === 'apto' ? 'APTO' : student.voto_instructor === 'no_apto' ? 'NO APTO' : 'EVALUANDO'}
