@@ -76,6 +76,7 @@ export default function App() {
   // Búsqueda y filtros para biblioteca
   const [searchResource, setSearchResource] = useState('');
   const [filterCategory, setFilterCategory] = useState('todos');
+  const [controlFilter, setControlFilter] = useState('todos');
 
   const slides = [
     { title: "RTD PORTAL", subtitle: "RECRUITMENT & TRAINING DIVISION", image: "https://r2.fivemanage.com/rlMpa4HCjCLM3vQVrxiNo/imagen_2026-04-13_222621960.png" },
@@ -219,18 +220,41 @@ export default function App() {
       }, 0);
 
       const lastObservation = studentObservations[student.id]?.slice().sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
+      const lastUpdateDate = student.updated_at || student.created_at || lastObservation?.created_at;
+      const daysSinceUpdate = lastUpdateDate ? Math.max(0, Math.floor((Date.now() - new Date(lastUpdateDate)) / (1000 * 60 * 60 * 24))) : null;
+      const weeklyActivity = daysSinceUpdate !== null && daysSinceUpdate <= 7 ? Math.max(1, Math.round(changeCount / Math.max(1, Math.min(daysSinceUpdate + 1, 7)))) : 0;
+      const changeRatePerDay = student.daysInProgram > 0 ? (changeCount / student.daysInProgram).toFixed(2) : '0.00';
 
       return {
         ...student,
         changeCount,
         lastObservation,
-        informeCount: student.observationCount
+        informeCount: student.observationCount,
+        lastUpdateDate,
+        daysSinceUpdate,
+        weeklyActivity,
+        changeRatePerDay
       };
     }).sort((a, b) => {
       if (b.informeCount !== a.informeCount) return b.informeCount - a.informeCount;
+      if (b.weeklyActivity !== a.weeklyActivity) return b.weeklyActivity - a.weeklyActivity;
       return b.changeCount - a.changeCount;
     });
   }, [studentProgressRanking, studentObservations]);
+
+  const filteredControlBoard = useMemo(() => {
+    if (controlFilter === 'todos') return controlBoard;
+    return controlBoard.filter(student => getStudentOrigin(student) === controlFilter);
+  }, [controlBoard, controlFilter]);
+
+  const controlMetrics = useMemo(() => {
+    const totalReports = filteredControlBoard.reduce((sum, student) => sum + student.informeCount, 0);
+    const totalChanges = filteredControlBoard.reduce((sum, student) => sum + student.changeCount, 0);
+    const recentActivity = filteredControlBoard.filter(student => student.daysSinceUpdate !== null && student.daysSinceUpdate <= 7).length;
+    const mostActive = [...filteredControlBoard].sort((a, b) => b.weeklyActivity - a.weeklyActivity)[0] || null;
+
+    return { totalReports, totalChanges, recentActivity, mostActive };
+  }, [filteredControlBoard]);
 
   const moduleSummary = useMemo(() => {
     return ACADEMIC_MODULES.map(key => {
@@ -918,21 +942,50 @@ export default function App() {
 
             {activeTab === 'control' && (
               <div className="space-y-8">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                   <div className="bg-white/5 border border-white/10 rounded-[2rem] p-6 backdrop-blur-md shadow-xl">
                     <div className="text-[9px] font-black uppercase tracking-widest text-zinc-500 italic mb-3">Miembros RTD</div>
-                    <div className="text-4xl font-black italic text-red-500 mb-1">{summaryStats.totalStudents}</div>
-                    <div className="text-[10px] font-black uppercase tracking-widest text-zinc-600 italic">Total visibles</div>
+                    <div className="text-4xl font-black italic text-red-500 mb-1">{filteredControlBoard.length}</div>
+                    <div className="text-[10px] font-black uppercase tracking-widest text-zinc-600 italic">Visible en filtro</div>
                   </div>
                   <div className="bg-white/5 border border-emerald-900/20 rounded-[2rem] p-6 backdrop-blur-md shadow-xl">
                     <div className="text-[9px] font-black uppercase tracking-widest text-zinc-500 italic mb-3">Informes realizados</div>
-                    <div className="text-4xl font-black italic text-emerald-400 mb-1">{summaryStats.totalObservations}</div>
+                    <div className="text-4xl font-black italic text-emerald-400 mb-1">{controlMetrics.totalReports}</div>
                     <div className="text-[10px] font-black uppercase tracking-widest text-zinc-600 italic">Registros activos</div>
                   </div>
                   <div className="bg-white/5 border border-sky-900/20 rounded-[2rem] p-6 backdrop-blur-md shadow-xl">
                     <div className="text-[9px] font-black uppercase tracking-widest text-zinc-500 italic mb-3">Cambios detectados</div>
-                    <div className="text-4xl font-black italic text-sky-400 mb-1">{controlBoard.reduce((sum, item) => sum + item.changeCount, 0)}</div>
+                    <div className="text-4xl font-black italic text-sky-400 mb-1">{controlMetrics.totalChanges}</div>
                     <div className="text-[10px] font-black uppercase tracking-widest text-zinc-600 italic">En fichas</div>
+                  </div>
+                  <div className="bg-white/5 border border-amber-900/20 rounded-[2rem] p-6 backdrop-blur-md shadow-xl">
+                    <div className="text-[9px] font-black uppercase tracking-widest text-zinc-500 italic mb-3">Actividad 7 días</div>
+                    <div className="text-4xl font-black italic text-amber-400 mb-1">{controlMetrics.recentActivity}</div>
+                    <div className="text-[10px] font-black uppercase tracking-widest text-zinc-600 italic">Miembros con cambios</div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <div className="bg-white/5 border border-white/10 rounded-[2rem] p-6 backdrop-blur-md shadow-xl">
+                    <div className="text-[9px] font-black uppercase tracking-widest text-zinc-500 italic mb-4">Filtro de control</div>
+                    <div className="flex gap-3 flex-wrap">
+                      {['todos', 'academia', 'traslado'].map(option => (
+                        <button
+                          key={option}
+                          onClick={() => setControlFilter(option)}
+                          className={`px-5 py-3 rounded-full text-[9px] font-black uppercase tracking-widest transition-all ${controlFilter === option ? 'bg-red-600 text-white' : 'bg-black/20 border border-white/10 text-zinc-400 hover:text-white'}`}
+                        >
+                          {option === 'todos' ? 'TODOS' : option === 'academia' ? 'ACADEMIA' : 'TRASLADO'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="bg-white/5 border border-red-600/20 rounded-[2rem] p-6 backdrop-blur-md shadow-xl">
+                    <div className="text-[9px] font-black uppercase tracking-widest text-red-500 italic mb-3">TOP ACTUALIZACIÓN RECIENTE</div>
+                    <div className="text-2xl font-black italic uppercase tracking-tighter">{controlMetrics.mostActive ? controlMetrics.mostActive.name : 'Sin actividad'}</div>
+                    <div className="mt-2 text-[10px] font-black uppercase tracking-widest text-zinc-500 italic">
+                      {controlMetrics.mostActive ? `${controlMetrics.mostActive.weeklyActivity} cambios en 7 días` : 'Sin actividad reciente'}
+                    </div>
                   </div>
                 </div>
 
@@ -942,7 +995,7 @@ export default function App() {
                       <div className="text-[10px] font-black uppercase tracking-widest text-zinc-500 italic mb-2">CONTROL ADMINISTRATIVO</div>
                       <h3 className="text-3xl font-black italic uppercase tracking-tighter">Seguimiento por miembro de RTD</h3>
                     </div>
-                    <div className="text-[10px] font-black uppercase tracking-widest text-zinc-500 italic">Ranking ponderado por informes y cambios</div>
+                    <div className="text-[10px] font-black uppercase tracking-widest text-zinc-500 italic">Ranking por informes, cambios y actividad reciente</div>
                   </div>
 
                   <div className="overflow-x-auto rounded-[2rem] border border-white/10">
@@ -953,13 +1006,15 @@ export default function App() {
                           <th className="px-4 py-4">Ingreso</th>
                           <th className="px-4 py-4">Informes</th>
                           <th className="px-4 py-4">Cambios</th>
-                          <th className="px-4 py-4">Último informe</th>
+                          <th className="px-4 py-4">Cambio/día</th>
+                          <th className="px-4 py-4">Act. 7d</th>
+                          <th className="px-4 py-4">Último cambio</th>
                           <th className="px-4 py-4">Rango</th>
                           <th className="px-4 py-4">Estado</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {controlBoard.map((student, index) => (
+                        {filteredControlBoard.map((student, index) => (
                           <tr key={student.id} className="border-b border-white/5 bg-white/[0.02] hover:bg-white/[0.05] transition-all">
                             <td className="px-4 py-4">
                               <div className="text-[11px] font-black uppercase tracking-tighter text-white">{index + 1}. {student.name}</div>
@@ -967,7 +1022,9 @@ export default function App() {
                             <td className="px-4 py-4 text-[10px] font-black uppercase tracking-widest text-zinc-400 italic">{formatDate(student.fecha_ingreso || student.created_at)}</td>
                             <td className="px-4 py-4 text-[10px] font-black uppercase tracking-widest text-emerald-400 italic">{student.informeCount}</td>
                             <td className="px-4 py-4 text-[10px] font-black uppercase tracking-widest text-sky-400 italic">{student.changeCount}</td>
-                            <td className="px-4 py-4 text-[10px] font-black uppercase tracking-widest text-amber-400 italic">{student.lastObservation ? formatDate(student.lastObservation.created_at) : 'Sin informe'}</td>
+                            <td className="px-4 py-4 text-[10px] font-black uppercase tracking-widest text-amber-400 italic">{student.changeRatePerDay}</td>
+                            <td className="px-4 py-4 text-[10px] font-black uppercase tracking-widest text-fuchsia-400 italic">{student.weeklyActivity}</td>
+                            <td className="px-4 py-4 text-[10px] font-black uppercase tracking-widest text-amber-400 italic">{student.lastUpdateDate ? formatDate(student.lastUpdateDate) : 'Sin actividad'}</td>
                             <td className="px-4 py-4 text-[10px] font-black uppercase tracking-widest text-zinc-400 italic">{student.rango || 'Academy'}</td>
                             <td className="px-4 py-4 text-[10px] font-black uppercase tracking-widest italic">
                               <span className={`rounded-full px-3 py-1 ${student.voto_instructor === 'apto' ? 'bg-green-600/20 text-green-400' : student.voto_instructor === 'no_apto' ? 'bg-red-600/20 text-red-400' : 'bg-yellow-600/20 text-yellow-400'}`}>
