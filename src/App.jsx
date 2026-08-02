@@ -61,6 +61,7 @@ export default function App() {
   const [isEditingHorario, setIsEditingHorario] = useState(false);
   const [tempHorario, setTempHorario] = useState('');
   const [tempFechaIngreso, setTempFechaIngreso] = useState('');
+  const [isSavingStudent, setIsSavingStudent] = useState(false);
   
   // Búsqueda y filtros para biblioteca
   const [searchResource, setSearchResource] = useState('');
@@ -112,6 +113,7 @@ export default function App() {
         const completedModules = academicModules.filter(key => student[key] === 'realizado').length;
         const masteredSkills = skillKeys.filter(key => student[key] === 'aprendido').length;
         const currentSkills = skillKeys.filter(key => student[key] === 'cursando').length;
+        const pendingSkills = skillKeys.filter(key => student[key] === 'no' || !student[key]).length;
         const daysInProgram = student.fecha_ingreso
           ? Math.max(1, Math.floor((new Date() - new Date(student.fecha_ingreso)) / (1000 * 60 * 60 * 24)))
           : 0;
@@ -122,6 +124,8 @@ export default function App() {
           completedModules,
           masteredSkills,
           currentSkills,
+          pendingSkills,
+          totalSkills: skillKeys.length,
           daysInProgram,
           evolutionScore
         };
@@ -192,9 +196,43 @@ export default function App() {
       updatePayload[`${column}_validador`] = finalValue ? instructorInfo.fullTag : null;
       updatePayload[`${column}_fecha`] = finalValue ? new Date().toLocaleDateString('es-ES') : null;
     }
-    await supabase.from('students').update(updatePayload).eq('id', selectedStudent.id);
+
+    const { error } = await supabase.from('students').update(updatePayload).eq('id', selectedStudent.id);
+    if (error) {
+      console.error('Error updating student data:', error);
+      alert('No se pudo guardar el cambio en la ficha.');
+      return;
+    }
+
     setSelectedStudent({ ...selectedStudent, ...updatePayload });
     fetchAllData();
+  };
+
+  const saveStudentCard = async () => {
+    if (!supabase || !selectedStudent) return;
+
+    setIsSavingStudent(true);
+
+    try {
+      const payload = {
+        horario: tempHorario || 'Mañana / Tarde',
+        fecha_ingreso: tempFechaIngreso || null,
+        rango: selectedStudent.rango || 'Academy',
+        tipo_ingreso: selectedStudent.tipo_ingreso || 'academia'
+      };
+
+      const { error } = await supabase.from('students').update(payload).eq('id', selectedStudent.id);
+      if (error) throw error;
+
+      setSelectedStudent({ ...selectedStudent, ...payload });
+      await fetchAllData();
+      alert('Ficha guardada correctamente');
+    } catch (error) {
+      console.error('Error saving student card:', error);
+      alert('No se pudo guardar la ficha del miembro.');
+    } finally {
+      setIsSavingStudent(false);
+    }
   };
 
   const handleCreateResource = async (e) => {
@@ -426,7 +464,16 @@ export default function App() {
         {selectedStudent ? (
           /* --- DISEÑO EXPEDIENTE TÁCTICO RECONSTRUIDO --- */
           <div className="space-y-12 pb-20 animate-in fade-in duration-500">
-            <button onClick={() => setSelectedStudent(null)} className="text-zinc-600 hover:text-white text-[9px] font-black uppercase tracking-widest flex items-center gap-2 mb-12 bg-white/5 px-6 py-3 rounded-xl border border-white/5 backdrop-blur-md shadow-lg transition-all"><ChevronLeft className="w-4 h-4" /> VOLVER AL LISTADO</button>
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+              <button onClick={() => setSelectedStudent(null)} className="text-zinc-600 hover:text-white text-[9px] font-black uppercase tracking-widest flex items-center gap-2 bg-white/5 px-6 py-3 rounded-xl border border-white/5 backdrop-blur-md shadow-lg transition-all"><ChevronLeft className="w-4 h-4" /> VOLVER AL LISTADO</button>
+              <button
+                onClick={saveStudentCard}
+                disabled={isSavingStudent}
+                className="bg-red-600 text-white px-8 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-red-700 transition-all shadow-xl disabled:opacity-70"
+              >
+                {isSavingStudent ? 'GUARDANDO...' : 'GUARDAR FICHA'}
+              </button>
+            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                <div className="bg-white/5 border border-white/10 rounded-[3rem] p-10 backdrop-blur-md shadow-2xl">
@@ -571,8 +618,8 @@ export default function App() {
                         <div className="text-3xl font-black italic text-red-500">{topProgressStudent ? topProgressStudent.daysInProgram : 0}</div>
                       </div>
                       <div className="bg-black/30 rounded-[1.5rem] p-4 text-center border border-white/5">
-                        <div className="text-[9px] font-black uppercase tracking-widest text-zinc-500 italic">Módulos</div>
-                        <div className="text-3xl font-black italic text-red-500">{topProgressStudent ? topProgressStudent.completedModules : 0}</div>
+                        <div className="text-[9px] font-black uppercase tracking-widest text-zinc-500 italic">Habilidades</div>
+                        <div className="text-3xl font-black italic text-red-500">{topProgressStudent ? `${topProgressStudent.masteredSkills}/${topProgressStudent.totalSkills}` : '0/0'}</div>
                       </div>
                     </div>
                   </div>
@@ -592,9 +639,10 @@ export default function App() {
                           <div className="h-2 rounded-full bg-black/40 overflow-hidden mb-4">
                             <div className="h-full rounded-full bg-gradient-to-r from-red-600 to-orange-400" style={{ width: `${progressPercent}%` }} />
                           </div>
-                          <div className="grid grid-cols-2 gap-3 text-[9px] font-black uppercase tracking-widest text-zinc-300">
-                            <div className="bg-black/30 rounded-2xl p-3">Días: {student.daysInProgram}</div>
-                            <div className="bg-black/30 rounded-2xl p-3">Habilidades: {student.masteredSkills}</div>
+                          <div className="grid grid-cols-3 gap-2 text-[9px] font-black uppercase tracking-widest text-zinc-300">
+                            <div className="bg-black/30 rounded-2xl p-3 text-center">Días: {student.daysInProgram}</div>
+                            <div className="bg-black/30 rounded-2xl p-3 text-center">Apr.: {student.masteredSkills}</div>
+                            <div className="bg-black/30 rounded-2xl p-3 text-center">Cur.: {student.currentSkills}</div>
                           </div>
                         </div>
                       );
