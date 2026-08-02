@@ -212,18 +212,45 @@ export default function App() {
   const handleCreateStudent = async (e) => {
     e.preventDefault();
     if (!newStudentName.trim()) return;
+
     const fechaIngreso = new Date().toISOString().split('T')[0];
-    await supabase.from('students').insert([{ 
+    const basePayload = {
       name: newStudentName,
       rango: 'Academy',
-      horario: 'Mañana / Tarde',
+      horario: 'Mañana / Tarde'
+    };
+    const fullPayload = {
+      ...basePayload,
       tipo_ingreso: newStudentOrigin,
       fecha_ingreso: fechaIngreso
-    }]);
-    setNewStudentName('');
-    setNewStudentOrigin('academia');
-    setIsModalOpen(false);
-    fetchAllData();
+    };
+
+    try {
+      const { data, error } = await supabase.from('students').insert([fullPayload]).select();
+
+      if (error) {
+        const message = String(error?.message || '').toLowerCase();
+        const hasMissingColumns = message.includes('column') || message.includes('does not exist') || message.includes('unknown');
+
+        if (hasMissingColumns) {
+          const fallback = await supabase.from('students').insert([basePayload]).select();
+          if (fallback.error) throw fallback.error;
+          setStudents(prev => [...(fallback.data || []), ...prev]);
+        } else {
+          throw error;
+        }
+      } else {
+        setStudents(prev => [...(data || []), ...prev]);
+      }
+
+      setNewStudentName('');
+      setNewStudentOrigin('academia');
+      setIsModalOpen(false);
+      fetchAllData();
+    } catch (error) {
+      console.error('Error creating student:', error);
+      alert('No se pudo guardar el aspirante. Revisa la conexión o las columnas de la base de datos.');
+    }
   };
 
   const deleteStudent = async (id, e) => {
