@@ -103,6 +103,34 @@ export default function App() {
   const trasladoStudents = useMemo(() => students.filter(student => getStudentOrigin(student) === 'traslado'), [students]);
   const isTrasladoStudent = useMemo(() => getStudentOrigin(selectedStudent) === 'traslado', [selectedStudent]);
 
+  const studentProgressRanking = useMemo(() => {
+    const academicModules = ['asis_radio', 'asis_auxilios', 'asis_incendios', 'asis_excarcelacion'];
+    const skillKeys = ['actitud', 'mando', 'interna', 'radio', 'primeros_aux', 'excarcelacion_hab', 'incendios_hab'];
+
+    return students
+      .map(student => {
+        const completedModules = academicModules.filter(key => student[key] === 'realizado').length;
+        const masteredSkills = skillKeys.filter(key => student[key] === 'aprendido').length;
+        const currentSkills = skillKeys.filter(key => student[key] === 'cursando').length;
+        const daysInProgram = student.fecha_ingreso
+          ? Math.max(1, Math.floor((new Date() - new Date(student.fecha_ingreso)) / (1000 * 60 * 60 * 24)))
+          : 0;
+        const evolutionScore = completedModules * 20 + masteredSkills * 10 + currentSkills * 5 + (student.voto_instructor === 'apto' ? 15 : 0);
+
+        return {
+          ...student,
+          completedModules,
+          masteredSkills,
+          currentSkills,
+          daysInProgram,
+          evolutionScore
+        };
+      })
+      .sort((a, b) => b.evolutionScore - a.evolutionScore);
+  }, [students]);
+
+  const topProgressStudent = studentProgressRanking[0] || null;
+
   const formatDate = (dateString) => {
     if (!dateString) return "---";
     const date = new Date(dateString);
@@ -518,10 +546,61 @@ export default function App() {
             )}
             
             {activeTab === 'progreso' && (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-white/5 border border-white/10 rounded-[2.5rem] p-10 backdrop-blur-md shadow-xl"><TrendingUp className="text-zinc-600 mb-6 w-8 h-8" /><div className="text-6xl font-black italic mb-2 tracking-tighter">{students.length}</div><div className="text-[10px] font-black text-zinc-600 uppercase tracking-widest italic">Aspirantes</div></div>
-                <div className="bg-white/5 border border-green-900/20 rounded-[2.5rem] p-10 backdrop-blur-md shadow-xl"><CheckCircle2 className="text-green-600 mb-6 w-8 h-8" /><div className="text-6xl font-black italic mb-2 tracking-tighter text-green-500">{students.filter(s => s.voto_instructor === 'apto').length}</div><div className="text-[10px] font-black text-zinc-600 uppercase tracking-widest italic">Graduados</div></div>
-                <div className="bg-white/5 border border-yellow-900/20 rounded-[2.5rem] p-10 backdrop-blur-md shadow-xl"><AlertCircle className="text-yellow-600 mb-6 w-8 h-8" /><div className="text-6xl font-black italic mb-2 tracking-tighter text-yellow-500">{students.filter(s => s.voto_instructor === null).length}</div><div className="text-[10px] font-black text-zinc-600 uppercase tracking-widest italic">Evaluando</div></div>
+              <div className="space-y-8">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="bg-white/5 border border-white/10 rounded-[2.5rem] p-10 backdrop-blur-md shadow-xl"><TrendingUp className="text-zinc-600 mb-6 w-8 h-8" /><div className="text-6xl font-black italic mb-2 tracking-tighter">{students.length}</div><div className="text-[10px] font-black text-zinc-600 uppercase tracking-widest italic">Aspirantes</div></div>
+                  <div className="bg-white/5 border border-green-900/20 rounded-[2.5rem] p-10 backdrop-blur-md shadow-xl"><CheckCircle2 className="text-green-600 mb-6 w-8 h-8" /><div className="text-6xl font-black italic mb-2 tracking-tighter text-green-500">{students.filter(s => s.voto_instructor === 'apto').length}</div><div className="text-[10px] font-black text-zinc-600 uppercase tracking-widest italic">Graduados</div></div>
+                  <div className="bg-white/5 border border-yellow-900/20 rounded-[2.5rem] p-10 backdrop-blur-md shadow-xl"><AlertCircle className="text-yellow-600 mb-6 w-8 h-8" /><div className="text-6xl font-black italic mb-2 tracking-tighter text-yellow-500">{students.filter(s => s.voto_instructor === null).length}</div><div className="text-[10px] font-black text-zinc-600 uppercase tracking-widest italic">Evaluando</div></div>
+                </div>
+
+                <div className="bg-white/5 border border-red-600/20 rounded-[3rem] p-10 backdrop-blur-md shadow-2xl">
+                  <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6 mb-8">
+                    <div className="flex items-center gap-4">
+                      <div className="p-4 rounded-[1.5rem] bg-red-600/15 border border-red-600/30">
+                        <Flame className="w-8 h-8 text-red-500" />
+                      </div>
+                      <div>
+                        <div className="text-[10px] font-black uppercase tracking-widest text-red-500 italic mb-2">LÍDER DE EVOLUCIÓN</div>
+                        <h3 className="text-4xl font-black italic uppercase tracking-tighter">{topProgressStudent ? topProgressStudent.name : 'Sin datos'}</h3>
+                        <div className="text-[10px] font-black uppercase tracking-widest text-zinc-500 italic">Progresando como bombero con mejor avance en el curso</div>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 min-w-[260px]">
+                      <div className="bg-black/30 rounded-[1.5rem] p-4 text-center border border-white/5">
+                        <div className="text-[9px] font-black uppercase tracking-widest text-zinc-500 italic">Días en curso</div>
+                        <div className="text-3xl font-black italic text-red-500">{topProgressStudent ? topProgressStudent.daysInProgram : 0}</div>
+                      </div>
+                      <div className="bg-black/30 rounded-[1.5rem] p-4 text-center border border-white/5">
+                        <div className="text-[9px] font-black uppercase tracking-widest text-zinc-500 italic">Módulos</div>
+                        <div className="text-3xl font-black italic text-red-500">{topProgressStudent ? topProgressStudent.completedModules : 0}</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    {studentProgressRanking.slice(0, 3).map((student, index) => {
+                      const progressPercent = Math.min(100, Math.round((student.evolutionScore / Math.max(1, studentProgressRanking[0]?.evolutionScore || 1)) * 100));
+                      const medalColor = index === 0 ? 'text-red-500' : index === 1 ? 'text-amber-400' : 'text-sky-400';
+                      return (
+                        <div key={student.id} className={`rounded-[2rem] border p-6 backdrop-blur-md ${index === 0 ? 'bg-red-600/10 border-red-600/40' : index === 1 ? 'bg-amber-500/10 border-amber-500/30' : 'bg-sky-500/10 border-sky-500/30'}`}>
+                          <div className="flex items-center justify-between mb-4">
+                            <div className={`text-[11px] font-black uppercase tracking-widest ${medalColor} italic`}>#{index + 1}</div>
+                            <div className="text-[9px] font-black uppercase tracking-widest text-zinc-500 italic">{student.rango || 'Academy'}</div>
+                          </div>
+                          <h4 className="text-2xl font-black italic uppercase tracking-tighter mb-2">{student.name}</h4>
+                          <div className="text-[10px] font-black uppercase tracking-widest text-zinc-400 italic mb-4">Progreso: {progressPercent}%</div>
+                          <div className="h-2 rounded-full bg-black/40 overflow-hidden mb-4">
+                            <div className="h-full rounded-full bg-gradient-to-r from-red-600 to-orange-400" style={{ width: `${progressPercent}%` }} />
+                          </div>
+                          <div className="grid grid-cols-2 gap-3 text-[9px] font-black uppercase tracking-widest text-zinc-300">
+                            <div className="bg-black/30 rounded-2xl p-3">Días: {student.daysInProgram}</div>
+                            <div className="bg-black/30 rounded-2xl p-3">Habilidades: {student.masteredSkills}</div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
             )}
 
