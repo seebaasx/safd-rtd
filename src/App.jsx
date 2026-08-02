@@ -402,7 +402,7 @@ export default function App() {
                </div>
             </div>
 
-            {selectedStudent.rango !== 'Probationary' && (
+            {selectedStudent.tipo_ingreso !== 'traslado' && (
               <div className="bg-white/5 border border-white/10 rounded-[3rem] p-10 border-t-4 border-t-green-600 backdrop-blur-md shadow-2xl">
                 <div className="text-zinc-300 text-[10px] font-black uppercase tracking-widest mb-10 flex items-center gap-2"><Calendar className="w-4 h-4 text-green-600" /> Días Academia</div>
                 <table className="w-full text-left border-separate border-spacing-y-2">
