@@ -33,6 +33,8 @@ const USER_ROLES = {
   "markuskraver@safd.com": "Shift Commander",
 };
 const RANGOS_ACADEMIA = ["Academy", "Probationary", "Ascendido", "Suspendido"];
+const ACADEMIC_MODULES = ['asis_radio', 'asis_auxilios', 'asis_incendios', 'asis_excarcelacion'];
+const FIELD_SKILLS = ['actitud', 'mando', 'interna', 'radio', 'primeros_aux', 'excarcelacion_hab', 'incendios_hab'];
 
 export default function App() {
   const [supabase, setSupabase] = useState(null);
@@ -107,23 +109,20 @@ export default function App() {
   const isTrasladoStudent = useMemo(() => getStudentOrigin(selectedStudent) === 'traslado', [selectedStudent]);
 
   const studentProgressRanking = useMemo(() => {
-    const academicModules = ['asis_radio', 'asis_auxilios', 'asis_incendios', 'asis_excarcelacion'];
-    const skillKeys = ['actitud', 'mando', 'interna', 'radio', 'primeros_aux', 'excarcelacion_hab', 'incendios_hab'];
-
     return students
       .map(student => {
-        const completedModules = academicModules.filter(key => student[key] === 'realizado').length;
-        const masteredSkills = skillKeys.filter(key => student[key] === 'aprendido').length;
-        const currentSkills = skillKeys.filter(key => student[key] === 'cursando').length;
-        const pendingSkills = skillKeys.filter(key => student[key] === 'no' || !student[key]).length;
+        const completedModules = ACADEMIC_MODULES.filter(key => student[key] === 'realizado').length;
+        const masteredSkills = FIELD_SKILLS.filter(key => student[key] === 'aprendido').length;
+        const currentSkills = FIELD_SKILLS.filter(key => student[key] === 'cursando').length;
+        const pendingSkills = FIELD_SKILLS.filter(key => student[key] === 'no' || !student[key]).length;
         const observationCount = studentObservations[student.id]?.length || 0;
         const fechaBase = student.fecha_ingreso || student.created_at;
         const daysInProgram = fechaBase
           ? Math.max(0, Math.floor((new Date() - new Date(fechaBase)) / (1000 * 60 * 60 * 24)))
           : 0;
 
-        const moduleProgress = (completedModules / academicModules.length) * 40;
-        const skillProgress = ((masteredSkills + (currentSkills * 0.5)) / skillKeys.length) * 45;
+        const moduleProgress = (completedModules / ACADEMIC_MODULES.length) * 40;
+        const skillProgress = ((masteredSkills + (currentSkills * 0.5)) / FIELD_SKILLS.length) * 45;
         const commentProgress = Math.min(observationCount, 5) / 5 * 10;
         const voteBonus = student.voto_instructor === 'apto' ? 5 : 0;
         const progressPercent = Math.min(100, Math.round(moduleProgress + skillProgress + commentProgress + voteBonus));
@@ -135,13 +134,46 @@ export default function App() {
           currentSkills,
           pendingSkills,
           observationCount,
-          totalSkills: skillKeys.length,
+          totalSkills: FIELD_SKILLS.length,
           daysInProgram,
           progressPercent
         };
       })
       .sort((a, b) => b.progressPercent - a.progressPercent);
   }, [students, studentObservations]);
+
+  const summaryStats = useMemo(() => {
+    const totalStudents = students.length;
+    const totalObservations = Object.values(studentObservations).reduce((sum, list) => sum + list.length, 0);
+    const averageProgress = totalStudents
+      ? Math.round(studentProgressRanking.reduce((sum, student) => sum + student.progressPercent, 0) / totalStudents)
+      : 0;
+    const averageDays = totalStudents
+      ? Math.round(studentProgressRanking.reduce((sum, student) => sum + student.daysInProgram, 0) / totalStudents)
+      : 0;
+    const masteredTotal = studentProgressRanking.reduce((sum, student) => sum + student.masteredSkills, 0);
+    const currentTotal = studentProgressRanking.reduce((sum, student) => sum + student.currentSkills, 0);
+    const pendingTotal = studentProgressRanking.reduce((sum, student) => sum + student.pendingSkills, 0);
+    const aptos = students.filter(student => student.voto_instructor === 'apto').length;
+    const evaluando = students.filter(student => student.voto_instructor === null).length;
+    const traslado = students.filter(student => getStudentOrigin(student) === 'traslado').length;
+    const academia = students.filter(student => getStudentOrigin(student) === 'academia').length;
+
+    return {
+      totalStudents,
+      totalObservations,
+      averageProgress,
+      averageDays,
+      masteredTotal,
+      currentTotal,
+      pendingTotal,
+      aptos,
+      evaluando,
+      traslado,
+      academia,
+      totalSkills: FIELD_SKILLS.length * totalStudents
+    };
+  }, [students, studentProgressRanking, studentObservations]);
 
   const topProgressStudent = studentProgressRanking[0] || null;
 
@@ -630,33 +662,76 @@ export default function App() {
             {activeTab === 'progreso' && (
               <div className="space-y-8">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div className="bg-white/5 border border-white/10 rounded-[2.5rem] p-10 backdrop-blur-md shadow-xl"><TrendingUp className="text-zinc-600 mb-6 w-8 h-8" /><div className="text-6xl font-black italic mb-2 tracking-tighter">{students.length}</div><div className="text-[10px] font-black text-zinc-600 uppercase tracking-widest italic">Aspirantes</div></div>
-                  <div className="bg-white/5 border border-green-900/20 rounded-[2.5rem] p-10 backdrop-blur-md shadow-xl"><CheckCircle2 className="text-green-600 mb-6 w-8 h-8" /><div className="text-6xl font-black italic mb-2 tracking-tighter text-green-500">{students.filter(s => s.voto_instructor === 'apto').length}</div><div className="text-[10px] font-black text-zinc-600 uppercase tracking-widest italic">Graduados</div></div>
-                  <div className="bg-white/5 border border-yellow-900/20 rounded-[2.5rem] p-10 backdrop-blur-md shadow-xl"><AlertCircle className="text-yellow-600 mb-6 w-8 h-8" /><div className="text-6xl font-black italic mb-2 tracking-tighter text-yellow-500">{students.filter(s => s.voto_instructor === null).length}</div><div className="text-[10px] font-black text-zinc-600 uppercase tracking-widest italic">Evaluando</div></div>
+                  <div className="bg-white/5 border border-white/10 rounded-[2.5rem] p-10 backdrop-blur-md shadow-xl"><TrendingUp className="text-zinc-600 mb-6 w-8 h-8" /><div className="text-6xl font-black italic mb-2 tracking-tighter">{summaryStats.totalStudents}</div><div className="text-[10px] font-black text-zinc-600 uppercase tracking-widest italic">Aspirantes</div></div>
+                  <div className="bg-white/5 border border-green-900/20 rounded-[2.5rem] p-10 backdrop-blur-md shadow-xl"><CheckCircle2 className="text-green-600 mb-6 w-8 h-8" /><div className="text-6xl font-black italic mb-2 tracking-tighter text-green-500">{summaryStats.aptos}</div><div className="text-[10px] font-black text-zinc-600 uppercase tracking-widest italic">Graduados</div></div>
+                  <div className="bg-white/5 border border-yellow-900/20 rounded-[2.5rem] p-10 backdrop-blur-md shadow-xl"><AlertCircle className="text-yellow-600 mb-6 w-8 h-8" /><div className="text-6xl font-black italic mb-2 tracking-tighter text-yellow-500">{summaryStats.evaluando}</div><div className="text-[10px] font-black text-zinc-600 uppercase tracking-widest italic">Evaluando</div></div>
                 </div>
 
-                <div className="bg-white/5 border border-red-600/20 rounded-[3rem] p-10 backdrop-blur-md shadow-2xl">
-                  <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6 mb-8">
-                    <div className="flex items-center gap-4">
-                      <div className="p-4 rounded-[1.5rem] bg-red-600/15 border border-red-600/30">
-                        <Flame className="w-8 h-8 text-red-500" />
-                      </div>
-                      <div>
-                        <div className="text-[10px] font-black uppercase tracking-widest text-red-500 italic mb-2">LÍDER DE EVOLUCIÓN</div>
-                        <h3 className="text-4xl font-black italic uppercase tracking-tighter">{topProgressStudent ? topProgressStudent.name : 'Sin datos'}</h3>
-                        <div className="text-[10px] font-black uppercase tracking-widest text-zinc-500 italic">Progresando como bombero con mejor avance en el curso</div>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3 min-w-[260px]">
-                      <div className="bg-black/30 rounded-[1.5rem] p-4 text-center border border-white/5">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+                  <div className="bg-white/5 border border-white/10 rounded-[2rem] p-6 backdrop-blur-md shadow-xl">
+                    <div className="text-[9px] font-black uppercase tracking-widest text-zinc-500 italic mb-3">Progreso medio</div>
+                    <div className="text-4xl font-black italic text-red-500 mb-2">{summaryStats.averageProgress}%</div>
+                    <div className="h-2 bg-black/40 rounded-full overflow-hidden"><div className="h-full bg-red-600 rounded-full" style={{ width: `${summaryStats.averageProgress}%` }} /></div>
+                  </div>
+                  <div className="bg-white/5 border border-white/10 rounded-[2rem] p-6 backdrop-blur-md shadow-xl">
+                    <div className="text-[9px] font-black uppercase tracking-widest text-zinc-500 italic mb-3">Días promedio</div>
+                    <div className="text-4xl font-black italic text-amber-400 mb-1">{summaryStats.averageDays}</div>
+                    <div className="text-[10px] font-black uppercase tracking-widest text-zinc-600 italic">En curso</div>
+                  </div>
+                  <div className="bg-white/5 border border-white/10 rounded-[2rem] p-6 backdrop-blur-md shadow-xl">
+                    <div className="text-[9px] font-black uppercase tracking-widest text-zinc-500 italic mb-3">Habilidades aprendidas</div>
+                    <div className="text-4xl font-black italic text-emerald-400 mb-1">{summaryStats.masteredTotal}</div>
+                    <div className="text-[10px] font-black uppercase tracking-widest text-zinc-600 italic">Acumuladas</div>
+                  </div>
+                  <div className="bg-white/5 border border-white/10 rounded-[2rem] p-6 backdrop-blur-md shadow-xl">
+                    <div className="text-[9px] font-black uppercase tracking-widest text-zinc-500 italic mb-3">Seguimiento</div>
+                    <div className="text-4xl font-black italic text-sky-400 mb-1">{summaryStats.totalObservations}</div>
+                    <div className="text-[10px] font-black uppercase tracking-widest text-zinc-600 italic">Comentarios activos</div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <div className="bg-white/5 border border-red-600/20 rounded-[3rem] p-8 backdrop-blur-md shadow-2xl">
+                    <div className="text-[10px] font-black uppercase tracking-widest text-red-500 italic mb-4">LÍDER DE EVOLUCIÓN</div>
+                    <h3 className="text-4xl font-black italic uppercase tracking-tighter mb-4">{topProgressStudent ? topProgressStudent.name : 'Sin datos'}</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="bg-black/30 rounded-[1.5rem] p-4 border border-white/5 text-center">
                         <div className="text-[9px] font-black uppercase tracking-widest text-zinc-500 italic">Días en curso</div>
                         <div className="text-3xl font-black italic text-red-500">{topProgressStudent ? topProgressStudent.daysInProgram : 0}</div>
                       </div>
-                      <div className="bg-black/30 rounded-[1.5rem] p-4 text-center border border-white/5">
+                      <div className="bg-black/30 rounded-[1.5rem] p-4 border border-white/5 text-center">
                         <div className="text-[9px] font-black uppercase tracking-widest text-zinc-500 italic">Habilidades</div>
                         <div className="text-3xl font-black italic text-red-500">{topProgressStudent ? `${topProgressStudent.masteredSkills}/${topProgressStudent.totalSkills}` : '0/0'}</div>
                       </div>
                     </div>
+                  </div>
+
+                  <div className="bg-white/5 border border-white/10 rounded-[3rem] p-8 backdrop-blur-md shadow-2xl">
+                    <div className="text-[10px] font-black uppercase tracking-widest text-zinc-500 italic mb-5">DISTRIBUCIÓN DEL FICHAJE</div>
+                    <div className="space-y-4">
+                      <div>
+                        <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-zinc-400 italic mb-2"><span>Academia</span><span>{summaryStats.academia}</span></div>
+                        <div className="h-2 bg-black/40 rounded-full overflow-hidden"><div className="h-full bg-emerald-500 rounded-full" style={{ width: `${summaryStats.totalStudents ? (summaryStats.academia / summaryStats.totalStudents) * 100 : 0}%` }} /></div>
+                      </div>
+                      <div>
+                        <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-zinc-400 italic mb-2"><span>Traslado</span><span>{summaryStats.traslado}</span></div>
+                        <div className="h-2 bg-black/40 rounded-full overflow-hidden"><div className="h-full bg-sky-500 rounded-full" style={{ width: `${summaryStats.totalStudents ? (summaryStats.traslado / summaryStats.totalStudents) * 100 : 0}%` }} /></div>
+                      </div>
+                      <div>
+                        <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-zinc-400 italic mb-2"><span>En evaluación</span><span>{summaryStats.evaluando}</span></div>
+                        <div className="h-2 bg-black/40 rounded-full overflow-hidden"><div className="h-full bg-amber-500 rounded-full" style={{ width: `${summaryStats.totalStudents ? (summaryStats.evaluando / summaryStats.totalStudents) * 100 : 0}%` }} /></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-white/5 border border-red-600/20 rounded-[3rem] p-10 backdrop-blur-md shadow-2xl">
+                  <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6 mb-8">
+                    <div>
+                      <div className="text-[10px] font-black uppercase tracking-widest text-red-500 italic mb-2">TOP 3 EVOLUCIÓN</div>
+                      <h3 className="text-3xl font-black italic uppercase tracking-tighter">Control de desarrollo</h3>
+                    </div>
+                    <div className="text-[10px] font-black uppercase tracking-widest text-zinc-500 italic">Habilidades: {summaryStats.masteredTotal} aprendidas · {summaryStats.currentTotal} cursando · {summaryStats.pendingTotal} pendientes</div>
                   </div>
 
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
