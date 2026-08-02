@@ -43,6 +43,7 @@ export default function App() {
   const [resources, setResources] = useState([]);
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [observations, setObservations] = useState([]);
+  const [studentObservations, setStudentObservations] = useState({});
   const [newObs, setNewObs] = useState('');
   
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -114,10 +115,17 @@ export default function App() {
         const masteredSkills = skillKeys.filter(key => student[key] === 'aprendido').length;
         const currentSkills = skillKeys.filter(key => student[key] === 'cursando').length;
         const pendingSkills = skillKeys.filter(key => student[key] === 'no' || !student[key]).length;
-        const daysInProgram = student.fecha_ingreso
-          ? Math.max(1, Math.floor((new Date() - new Date(student.fecha_ingreso)) / (1000 * 60 * 60 * 24)))
+        const observationCount = studentObservations[student.id]?.length || 0;
+        const fechaBase = student.fecha_ingreso || student.created_at;
+        const daysInProgram = fechaBase
+          ? Math.max(0, Math.floor((new Date() - new Date(fechaBase)) / (1000 * 60 * 60 * 24)))
           : 0;
-        const evolutionScore = completedModules * 20 + masteredSkills * 10 + currentSkills * 5 + (student.voto_instructor === 'apto' ? 15 : 0);
+
+        const moduleProgress = (completedModules / academicModules.length) * 40;
+        const skillProgress = ((masteredSkills + (currentSkills * 0.5)) / skillKeys.length) * 45;
+        const commentProgress = Math.min(observationCount, 5) / 5 * 10;
+        const voteBonus = student.voto_instructor === 'apto' ? 5 : 0;
+        const progressPercent = Math.min(100, Math.round(moduleProgress + skillProgress + commentProgress + voteBonus));
 
         return {
           ...student,
@@ -125,13 +133,14 @@ export default function App() {
           masteredSkills,
           currentSkills,
           pendingSkills,
+          observationCount,
           totalSkills: skillKeys.length,
           daysInProgram,
-          evolutionScore
+          progressPercent
         };
       })
-      .sort((a, b) => b.evolutionScore - a.evolutionScore);
-  }, [students]);
+      .sort((a, b) => b.progressPercent - a.progressPercent);
+  }, [students, studentObservations]);
 
   const topProgressStudent = studentProgressRanking[0] || null;
 
@@ -167,12 +176,21 @@ export default function App() {
     try {
       const { data: stds, error: stdErr } = await client.from('students').select('*').order('name');
       const { data: ress, error: resErr } = await client.from('resources').select('*').order('created_at', { ascending: false });
+      const { data: obs, error: obsErr } = await client.from('observations').select('*');
       
       if (stdErr) console.error('Error fetching students:', stdErr);
       if (resErr) console.error('Error fetching resources:', resErr);
+      if (obsErr) console.error('Error fetching observations:', obsErr);
+
+      const observationsByStudent = (obs || []).reduce((acc, item) => {
+        if (!acc[item.student_id]) acc[item.student_id] = [];
+        acc[item.student_id].push(item);
+        return acc;
+      }, {});
       
       setStudents(stds || []);
       setResources(ress || []);
+      setStudentObservations(observationsByStudent);
     } catch (error) {
       console.error('Error fetching data:', error);
     }
@@ -626,7 +644,6 @@ export default function App() {
 
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     {studentProgressRanking.slice(0, 3).map((student, index) => {
-                      const progressPercent = Math.min(100, Math.round((student.evolutionScore / Math.max(1, studentProgressRanking[0]?.evolutionScore || 1)) * 100));
                       const medalColor = index === 0 ? 'text-red-500' : index === 1 ? 'text-amber-400' : 'text-sky-400';
                       return (
                         <div key={student.id} className={`rounded-[2rem] border p-6 backdrop-blur-md ${index === 0 ? 'bg-red-600/10 border-red-600/40' : index === 1 ? 'bg-amber-500/10 border-amber-500/30' : 'bg-sky-500/10 border-sky-500/30'}`}>
@@ -635,14 +652,15 @@ export default function App() {
                             <div className="text-[9px] font-black uppercase tracking-widest text-zinc-500 italic">{student.rango || 'Academy'}</div>
                           </div>
                           <h4 className="text-2xl font-black italic uppercase tracking-tighter mb-2">{student.name}</h4>
-                          <div className="text-[10px] font-black uppercase tracking-widest text-zinc-400 italic mb-4">Progreso: {progressPercent}%</div>
+                          <div className="text-[10px] font-black uppercase tracking-widest text-zinc-400 italic mb-4">Progreso: {student.progressPercent}%</div>
                           <div className="h-2 rounded-full bg-black/40 overflow-hidden mb-4">
-                            <div className="h-full rounded-full bg-gradient-to-r from-red-600 to-orange-400" style={{ width: `${progressPercent}%` }} />
+                            <div className="h-full rounded-full bg-gradient-to-r from-red-600 to-orange-400" style={{ width: `${student.progressPercent}%` }} />
                           </div>
-                          <div className="grid grid-cols-3 gap-2 text-[9px] font-black uppercase tracking-widest text-zinc-300">
+                          <div className="grid grid-cols-4 gap-2 text-[9px] font-black uppercase tracking-widest text-zinc-300">
                             <div className="bg-black/30 rounded-2xl p-3 text-center">Días: {student.daysInProgram}</div>
                             <div className="bg-black/30 rounded-2xl p-3 text-center">Apr.: {student.masteredSkills}</div>
                             <div className="bg-black/30 rounded-2xl p-3 text-center">Cur.: {student.currentSkills}</div>
+                            <div className="bg-black/30 rounded-2xl p-3 text-center">Com.: {student.observationCount}</div>
                           </div>
                         </div>
                       );
