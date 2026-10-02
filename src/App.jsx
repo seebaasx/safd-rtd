@@ -20,6 +20,39 @@ const INGRESO_TIPOS = [
   { id: 'academia', label: 'Miembros de Academia' },
   { id: 'traslado', label: 'Miembros de Traslado' }
 ];
+const INTERVIEW_QUESTION_BANK = [
+  {
+    category: 'Para conocer al candidato',
+    questions: [
+      { id: 'presentacion', text: 'Presentación: edad, de dónde viene y objetivos en el cuerpo.' },
+      { id: 'licencias', text: '¿Posee las licencias de coche y camión vigentes?' },
+      { id: 'adaptacion-veteranos', text: 'Como comprobarás próximamente, vas a ser uno de los bomberos novatos en una estación con veteranos de muchos años de experiencia. ¿Cómo piensas adaptarte a su dinámica y qué harás para ganarte su respeto?' },
+      { id: 'virtudes-defectos', text: 'Dime tres virtudes y tres defectos tuyos.' },
+      { id: 'prevencion-comunidad', text: 'El trabajo de bombero no solo implica apagar incendios, sino también educar a la comunidad sobre prevención. ¿Cómo explicarías brevemente a los ciudadanos cómo actuar ante un incendio o accidente?' },
+      { id: 'caracter-trabajo', text: 'Si tuvieras que describirte con tres palabras que definen tu carácter y personalidad en el trabajo, ¿cuáles serían y por qué?' },
+      { id: 'aprendizaje-frustracion', text: 'Este trabajo implica aprender constantemente nuevas técnicas y adaptarse a los cambios. ¿Cómo manejas el aprendizaje y cómo enfrentas la frustración cuando algo no te sale bien?' },
+      { id: 'diferencia-aspirantes', text: '¿Qué crees que te diferencia del resto de aspirantes?' },
+      { id: 'lider-ejecutor', text: '¿Te consideras más líder o más ejecutor?' },
+      { id: 'inseguridad', text: '¿Qué situaciones te hacen sentir inseguro?' },
+      { id: 'impacto-psicologico', text: '¿Has pensado en el impacto psicológico de nuestra profesión por todo lo que vemos a diario? ¿Te ves capaz de lidiar con ello?' }
+    ]
+  },
+  {
+    category: 'Situacionales',
+    questions: [
+      { id: 'dos-victimas', text: 'Estás dentro de un edificio en llamas y te encuentras con dos personas atrapadas: una está consciente pero tiene heridas graves, la otra está inconsciente pero parece estable. Solo puedes cargar a una. ¿Cómo decides a quién sacar?' },
+      { id: 'riesgo-colapso', text: 'Durante una intervención en un edificio en llamas, te das cuenta de que la estructura muestra señales de colapso inminente. Tienes órdenes de un superior de continuar con el rescate, pero tu instinto te dice que es demasiado peligroso. ¿Qué harías?' },
+      { id: 'tres-rescates', text: 'Llegas a un edificio en llamas y te informan que hay tres personas atrapadas en distintos puntos. Uno es un niño en el tercer piso, otro es un adulto mayor en el primer piso y el tercero es un compañero bombero herido en el segundo piso. ¿Cómo decides a quién rescatar primero y por qué?' },
+      { id: 'salida-bloqueada', text: 'Si durante un incendio estructural el techo comienza a colapsar y tu única salida queda bloqueada, ¿qué harías para encontrar una vía segura de escape?' },
+      { id: 'oxigeno-diez', text: 'Si encuentras a una persona inconsciente en un ambiente con poca visibilidad y denso humo, pero tu tanque de oxígeno está al 10 %, ¿qué harías para intentar sacarla con vida sin comprometer la tuya?' },
+      { id: 'nino-escondido', text: 'En un incendio residencial, un niño asustado se esconde debajo de la cama en lugar de salir cuando lo llamas. ¿Cómo lo sacarías sin asustarlo aún más ni poner en peligro la operación?' },
+      { id: 'persona-cercana', text: 'Te encuentras en un incendio estructural, escuchas gritos de dos puertas diferentes y reconoces una voz: es alguien muy cercano a ti. La otra no la reconoces. Por radio te dicen que han salido todos salvo tú y que tienes que salir de inmediato; solo puedes cargar con uno. ¿A quién escogerías y por qué?' },
+      { id: 'orden-insegura', text: 'Durante una emergencia, un compañero de tu mismo rango y experiencia te ordena hacer algo que consideras inseguro y poco ético. ¿Cómo abordarías esta situación en medio de un operativo?' },
+      { id: 'error-companero', text: 'Un compañero bombero comete un error grave en una intervención, pero nadie más se da cuenta. Si lo reportas, podría enfrentar consecuencias serias; si lo ocultas, podrías estar poniendo en riesgo futuras operaciones. ¿Qué harías?' },
+      { id: 'rechazo-rescate', text: 'Una persona atrapada en un accidente de tráfico te pide que no sigas con el rescate porque está demasiado herida y no quiere vivir con sus lesiones. ¿Cómo abordarías esta solicitud sabiendo que debes salvarle la vida a toda costa?' }
+    ]
+  }
+];
 
 const ADMIN_EMAILS = ["sya@safd.com"]; 
 const USER_ROLES = { 
@@ -54,6 +87,20 @@ export default function App() {
   const [studentObservations, setStudentObservations] = useState({});
   const [newObs, setNewObs] = useState('');
   const [activityLog, setActivityLog] = useState([]);
+  const [interviews, setInterviews] = useState(() => {
+    if (typeof window === 'undefined') return [];
+    try {
+      const saved = window.localStorage.getItem('rtd-interviews');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [newInterviewName, setNewInterviewName] = useState('');
+  const [selectedInterviewId, setSelectedInterviewId] = useState(null);
+  const [newInterviewQuestion, setNewInterviewQuestion] = useState('');
+  const [newInterviewAnswer, setNewInterviewAnswer] = useState('');
+  const [selectedQuestionIds, setSelectedQuestionIds] = useState([]);
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newStudentName, setNewStudentName] = useState('');
@@ -112,6 +159,12 @@ export default function App() {
       }
     }
   }, []);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('rtd-interviews', JSON.stringify(interviews));
+    }
+  }, [interviews]);
 
   useEffect(() => { if (!session) { const timer = setInterval(() => setCurrentSlide(prev => (prev + 1) % slides.length), 5000); return () => clearInterval(timer); } }, [session, slides.length]);
 
@@ -631,6 +684,105 @@ export default function App() {
     }
   };
 
+  const handleAddInterviewee = (e) => {
+    e.preventDefault();
+    const cleanedName = newInterviewName.trim();
+    if (!cleanedName) return;
+
+    const newInterview = {
+      id: `interview-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      name: cleanedName,
+      attendance: 'pendiente',
+      questions: []
+    };
+
+    setInterviews(prev => [newInterview, ...prev]);
+    setSelectedInterviewId(newInterview.id);
+    setNewInterviewName('');
+  };
+
+  const handleAddInterviewQuestion = (e) => {
+    e.preventDefault();
+    if (!isAdmin || !selectedInterviewId || !newInterviewQuestion.trim()) return;
+
+    const newQuestion = {
+      id: `question-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      text: newInterviewQuestion.trim(),
+      answer: newInterviewAnswer.trim(),
+      asked: false
+    };
+
+    setInterviews(prev => prev.map(interview =>
+      interview.id === selectedInterviewId
+        ? { ...interview, questions: [...interview.questions, newQuestion] }
+        : interview
+    ));
+
+    setNewInterviewQuestion('');
+    setNewInterviewAnswer('');
+  };
+
+  const handleAddSelectedInterviewQuestions = () => {
+    if (!selectedInterviewId || selectedQuestionIds.length === 0) return;
+
+    const selectedQuestions = INTERVIEW_QUESTION_BANK.flatMap(group => group.questions)
+      .filter(question => selectedQuestionIds.includes(question.id));
+
+    setInterviews(prev => prev.map(interview => {
+      if (interview.id !== selectedInterviewId) return interview;
+      const existingBankIds = new Set(interview.questions.map(question => question.bankId));
+      const questionsToAdd = selectedQuestions
+        .filter(question => !existingBankIds.has(question.id))
+        .map(question => ({
+          id: `question-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          bankId: question.id,
+          text: question.text,
+          answer: '',
+          asked: false
+        }));
+      return { ...interview, questions: [...interview.questions, ...questionsToAdd] };
+    }));
+
+    setSelectedQuestionIds([]);
+  };
+
+  const updateInterviewAttendance = (attendance) => {
+    setInterviews(prev => prev.map(interview =>
+      interview.id === selectedInterviewId
+        ? { ...interview, attendance }
+        : interview
+    ));
+  };
+
+  const updateInterviewQuestionAnswer = (questionId, value) => {
+    setInterviews(prev => prev.map(interview => {
+      if (interview.id !== selectedInterviewId) return interview;
+      return {
+        ...interview,
+        questions: interview.questions.map(question =>
+          question.id === questionId ? { ...question, answer: value } : question
+        )
+      };
+    }));
+  };
+
+  const toggleInterviewQuestion = (questionId) => {
+    setInterviews(prev => prev.map(interview => {
+      if (interview.id !== selectedInterviewId) return interview;
+      return {
+        ...interview,
+        questions: interview.questions.map(question =>
+          question.id === questionId ? { ...question, asked: !question.asked } : question
+        )
+      };
+    }));
+  };
+
+  const deleteInterview = (interviewId) => {
+    setInterviews(prev => prev.filter(interview => interview.id !== interviewId));
+    setSelectedInterviewId(prev => prev === interviewId ? null : prev);
+  };
+
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -680,6 +832,7 @@ export default function App() {
           {isAdmin && (
             <button onClick={() => { setActiveTab('control'); setSelectedStudent(null); }} className={`p-3 md:p-4 rounded-2xl transition-all ${activeTab === 'control' ? 'bg-red-600 text-white shadow-xl shadow-red-600/10' : 'text-zinc-600 hover:text-white'}`}><ShieldCheck className="w-5 h-5 md:w-6 md:h-6" /></button>
           )}
+          <button onClick={() => { setActiveTab('entrevistas'); setSelectedStudent(null); }} className={`p-3 md:p-4 rounded-2xl transition-all ${activeTab === 'entrevistas' ? 'bg-red-600 text-white shadow-xl shadow-red-600/10' : 'text-zinc-600 hover:text-white'}`}><MessageSquare className="w-5 h-5 md:w-6 md:h-6" /></button>
           <button onClick={() => { setActiveTab('recursos'); setSelectedStudent(null); }} className={`p-3 md:p-4 rounded-2xl transition-all ${activeTab === 'recursos' ? 'bg-red-600 text-white shadow-xl shadow-red-600/10' : 'text-zinc-600 hover:text-white'}`}><BookOpen className="w-5 h-5 md:w-6 md:h-6" /></button>
         </nav>
         <button onClick={() => { supabase.auth.signOut(); window.localStorage.clear(); window.location.reload(); }} className="ml-auto md:ml-0 md:mt-auto p-3 md:p-4 text-zinc-800 hover:text-red-600 transition-all"><LogOut className="w-5 h-5 md:w-6 md:h-6" /></button>
@@ -690,7 +843,7 @@ export default function App() {
           <div className="inline-flex items-center gap-2 bg-red-600/10 text-red-600 px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border border-red-600/20 mb-6 md:mb-8 italic backdrop-blur-md">{instructorInfo.fullTag}</div>
           <div className="flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-end">
             <h1 className="text-5xl sm:text-6xl md:text-[9rem] font-black italic uppercase tracking-tighter leading-[0.8] drop-shadow-2xl">
-               {selectedStudent ? selectedStudent.name : activeTab === 'alumnos' ? 'EXPEDIENTES' : activeTab === 'progreso' ? 'RESUMEN' : activeTab === 'control' ? 'CONTROL' : 'BIBLIOTECA'}
+               {selectedStudent ? selectedStudent.name : activeTab === 'alumnos' ? 'EXPEDIENTES' : activeTab === 'progreso' ? 'RESUMEN' : activeTab === 'control' ? 'CONTROL' : activeTab === 'entrevistas' ? 'ENTREVISTAS' : 'BIBLIOTECA'}
             </h1>
             {isAdmin && !selectedStudent && activeTab === 'alumnos' && (
               <button onClick={() => setIsModalOpen(true)} className="bg-white text-black px-6 py-3 md:px-8 md:py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-red-600 hover:text-white transition-all shadow-xl self-start sm:self-auto">+ ALTA ASPIRANTE</button>
@@ -1109,6 +1262,217 @@ export default function App() {
                         ))}
                       </tbody>
                     </table>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'entrevistas' && (
+              <div className="space-y-8">
+                <div className="grid grid-cols-1 xl:grid-cols-[340px_minmax(0,1fr)] gap-6">
+                  <aside className="bg-white/5 border border-white/10 rounded-[2rem] p-6 backdrop-blur-md shadow-2xl">
+                    <div className="flex items-center justify-between mb-6">
+                      <h2 className="text-xl font-black italic uppercase tracking-tighter">Opositores</h2>
+                      <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500 italic">{interviews.length}</span>
+                    </div>
+
+                    <form onSubmit={handleAddInterviewee} className="flex flex-col gap-3 mb-6">
+                      <input
+                        type="text"
+                        value={newInterviewName}
+                        onChange={e => setNewInterviewName(e.target.value)}
+                        placeholder="Nombre del futuro opositor"
+                        className="w-full bg-black/40 border border-white/10 rounded-2xl py-4 px-5 text-white font-bold outline-none focus:border-red-600"
+                      />
+                      <button type="submit" className="bg-red-600 hover:bg-red-700 text-white rounded-2xl py-3 px-4 text-[10px] font-black uppercase tracking-widest transition-all">
+                        + Añadir
+                      </button>
+                    </form>
+
+                    <div className="space-y-3">
+                      {interviews.length === 0 ? (
+                        <div className="bg-black/20 border border-dashed border-white/10 rounded-2xl p-6 text-center text-zinc-500 text-sm italic">
+                          Aún no hay opositores añadidos.
+                        </div>
+                      ) : (
+                        interviews.map(interview => {
+                          const askedCount = interview.questions.filter(question => question.asked).length;
+                          const isSelected = selectedInterviewId === interview.id;
+                          const attendanceLabel = interview.attendance === 'presente' ? 'Presente' : interview.attendance === 'ausente' ? 'Ausente' : 'Pendiente';
+
+                          return (
+                            <button
+                              key={interview.id}
+                              type="button"
+                              onClick={() => {
+                                setSelectedInterviewId(interview.id);
+                                setSelectedQuestionIds([]);
+                              }}
+                              className={`w-full text-left rounded-2xl border p-4 transition-all ${isSelected ? 'border-red-600 bg-red-600/10' : 'border-white/10 bg-black/20 hover:border-white/20'}`}
+                            >
+                              <div className="flex items-center justify-between gap-3">
+                                <span className="font-black italic uppercase tracking-tighter text-lg">{interview.name}</span>
+                                <span className="text-[9px] font-black uppercase tracking-widest text-zinc-500 italic">{askedCount}/{interview.questions.length}</span>
+                              </div>
+                              <div className="mt-2 flex items-center justify-between gap-2 text-[9px] font-black uppercase tracking-widest text-zinc-500 italic">
+                                <span>preguntas realizadas</span>
+                                <span className={`rounded-full px-2 py-1 ${interview.attendance === 'presente' ? 'bg-green-600/20 text-green-400' : interview.attendance === 'ausente' ? 'bg-red-600/20 text-red-400' : 'bg-yellow-600/20 text-yellow-400'}`}>
+                                  {attendanceLabel}
+                                </span>
+                              </div>
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
+                  </aside>
+
+                  <div className="bg-white/5 border border-white/10 rounded-[2rem] p-6 md:p-8 backdrop-blur-md shadow-2xl">
+                    {!selectedInterviewId || !interviews.find(interview => interview.id === selectedInterviewId) ? (
+                      <div className="flex h-full min-h-[280px] items-center justify-center text-center text-zinc-500 italic">
+                        Selecciona un opositor para registrar sus respuestas.
+                      </div>
+                    ) : (
+                      <>
+                        {(() => {
+                          const selectedInterview = interviews.find(interview => interview.id === selectedInterviewId);
+                          return (
+                            <>
+                              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+                                <div>
+                                  <div className="text-[10px] font-black uppercase tracking-widest text-zinc-500 italic mb-2">Ficha de entrevista</div>
+                                  <h3 className="text-3xl font-black italic uppercase tracking-tighter">{selectedInterview.name}</h3>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => deleteInterview(selectedInterview.id)}
+                                  className="bg-zinc-800 hover:bg-red-600 text-white rounded-xl px-4 py-3 text-[9px] font-black uppercase tracking-widest transition-all"
+                                >
+                                  Eliminar
+                                </button>
+                              </div>
+
+                              <div className="mb-6 rounded-[2rem] border border-white/10 bg-black/20 p-5">
+                                <label className="block text-[9px] font-black uppercase tracking-widest text-zinc-500 italic mb-2">Asistencia</label>
+                                <select
+                                  value={selectedInterview.attendance || 'pendiente'}
+                                  onChange={(e) => updateInterviewAttendance(e.target.value)}
+                                  className={`w-full rounded-2xl border py-4 px-5 font-bold outline-none focus:border-red-600 ${
+                                    selectedInterview.attendance === 'presente'
+                                      ? 'border-green-600/60 bg-green-600/10 text-green-300'
+                                      : selectedInterview.attendance === 'ausente'
+                                        ? 'border-red-600/60 bg-red-600/10 text-red-300'
+                                        : 'border-yellow-600/60 bg-yellow-600/10 text-yellow-200 bg-black/40'
+                                  }`}
+                                >
+                                  <option value="pendiente" className="bg-zinc-900">Pendiente</option>
+                                  <option value="presente" className="bg-zinc-900">Presente</option>
+                                  <option value="ausente" className="bg-zinc-900">Ausente</option>
+                                </select>
+                              </div>
+
+                              {isAdmin && (
+                                <div className="space-y-5 mb-8 border border-white/10 bg-black/20 rounded-[2rem] p-5">
+                                  <div>
+                                    <h4 className="text-sm font-black uppercase tracking-widest">Banco de preguntas</h4>
+                                    <p className="mt-1 text-xs text-zinc-500">Selecciona las preguntas que quieras incluir en esta ficha.</p>
+                                  </div>
+                                  {INTERVIEW_QUESTION_BANK.map(group => (
+                                    <details key={group.category} open className="border-t border-white/10 pt-4">
+                                      <summary className="cursor-pointer text-[10px] font-black uppercase tracking-widest text-red-400">{group.category}</summary>
+                                      <div className="mt-3 space-y-2">
+                                        {group.questions.map(question => {
+                                          const alreadyAdded = selectedInterview.questions.some(item => item.bankId === question.id);
+                                          const isChecked = alreadyAdded || selectedQuestionIds.includes(question.id);
+                                          return (
+                                            <label key={question.id} className={`flex items-start gap-3 rounded-xl border border-white/5 p-3 text-sm ${alreadyAdded ? 'text-zinc-600' : 'text-zinc-300 hover:bg-white/5'}`}>
+                                              <input
+                                                type="checkbox"
+                                                checked={isChecked}
+                                                disabled={alreadyAdded}
+                                                onChange={() => setSelectedQuestionIds(prev => isChecked ? prev.filter(id => id !== question.id) : [...prev, question.id])}
+                                                className="mt-1 h-4 w-4 shrink-0 accent-red-600"
+                                              />
+                                              <span>{question.text}</span>
+                                            </label>
+                                          );
+                                        })}
+                                      </div>
+                                    </details>
+                                  ))}
+                                  <button
+                                    type="button"
+                                    onClick={handleAddSelectedInterviewQuestions}
+                                    disabled={selectedQuestionIds.length === 0}
+                                    className="bg-red-600 hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-40 text-white rounded-2xl py-3 px-5 text-[10px] font-black uppercase tracking-widest transition-all"
+                                  >
+                                    Añadir seleccionadas ({selectedQuestionIds.length})
+                                  </button>
+                                </div>
+                              )}
+
+                              {isAdmin && (
+                                <form onSubmit={handleAddInterviewQuestion} className="space-y-4 mb-8 border border-white/10 bg-black/20 rounded-[2rem] p-5">
+                                  <div>
+                                    <label className="block text-[9px] font-black uppercase tracking-widest text-zinc-500 italic mb-2">Pregunta</label>
+                                    <input
+                                      type="text"
+                                      value={newInterviewQuestion}
+                                      onChange={e => setNewInterviewQuestion(e.target.value)}
+                                      placeholder="Ej. ¿Qué entiende por liderazgo?"
+                                      className="w-full bg-black/40 border border-white/10 rounded-2xl py-4 px-5 text-white font-bold outline-none focus:border-red-600"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-[9px] font-black uppercase tracking-widest text-zinc-500 italic mb-2">Respuesta</label>
+                                    <textarea
+                                      value={newInterviewAnswer}
+                                      onChange={e => setNewInterviewAnswer(e.target.value)}
+                                      placeholder="Escribe la respuesta del opositor..."
+                                      className="w-full bg-black/40 border border-white/10 rounded-2xl py-4 px-5 text-white font-bold outline-none focus:border-red-600 min-h-[110px] resize-none"
+                                    />
+                                  </div>
+                                  <button type="submit" className="bg-red-600 hover:bg-red-700 text-white rounded-2xl py-3 px-5 text-[10px] font-black uppercase tracking-widest transition-all">
+                                    Guardar respuesta
+                                  </button>
+                                </form>
+                              )}
+
+                              <div className="space-y-4">
+                                {selectedInterview.questions.length === 0 ? (
+                                  <div className="bg-black/20 border border-dashed border-white/10 rounded-2xl p-8 text-center text-zinc-500 italic">
+                                    No hay preguntas registradas aún.
+                                  </div>
+                                ) : (
+                                  selectedInterview.questions.map(question => (
+                                    <div key={question.id} className="border border-white/10 bg-black/20 rounded-[2rem] p-5">
+                                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+                                        <div className="text-base font-black italic uppercase tracking-tighter">{question.text}</div>
+                                        <label className="inline-flex items-center gap-2 text-[9px] font-black uppercase tracking-widest text-zinc-300">
+                                          <input
+                                            type="checkbox"
+                                            checked={question.asked}
+                                            onChange={() => toggleInterviewQuestion(question.id)}
+                                            className="h-4 w-4 accent-red-600"
+                                          />
+                                          Pregunta realizada
+                                        </label>
+                                      </div>
+                                      <textarea
+                                        value={question.answer}
+                                        onChange={e => updateInterviewQuestionAnswer(question.id, e.target.value)}
+                                        placeholder="Escribe la respuesta aquí..."
+                                        className="w-full bg-black/40 border border-white/10 rounded-2xl py-4 px-5 text-white font-bold outline-none focus:border-red-600 min-h-[120px] resize-none"
+                                      />
+                                    </div>
+                                  ))
+                                )}
+                              </div>
+                            </>
+                          );
+                        })()}
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
