@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>RTD - Entrevistas</title>
+    <style>
+      :root {
+        --bg: #09090b;
+        --panel: rgba(255,255,255,0.05);
+        --panel-strong: rgba(10,10,10,0.9);
+        --line: rgba(255,255,255,0.08);
+        --muted: #a1a1aa;
+        --text: #f4f4f5;
+        --red: #dc2626;
+        --red-soft: rgba(220, 38, 38, 0.12);
+        --green: #22c55e;
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        font-family: Arial, Helvetica, sans-serif;
+        background: #050505;
+        color: var(--text);
+      }
+
+      .app {
+        min-height: 100vh;
+        display: flex;
+        background: radial-gradient(circle at 20% 30%, rgba(220,38,38,0.08), transparent 50%);
+      }
+
+      .sidebar {
+        width: 110px;
+        background: rgba(0,0,0,0.4);
+        border-right: 1px solid var(--line);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 20px 12px;
+        gap: 26px;
+      }
+
+      .logo {
+        width: 52px;
+        height: 52px;
+        border-radius: 16px;
+        background: linear-gradient(135deg, var(--red), #7f1d1d);
+        display: grid;
+        place-items: center;
+        font-weight: 900;
+        letter-spacing: 1px;
+        font-size: 12px;
+        margin-bottom: 18px;
+      }
+
+      .nav-button {
+        width: 52px;
+        height: 52px;
+        border: 1px solid transparent;
+        border-radius: 18px;
+        background: transparent;
+        color: #71717a;
+        font-weight: 900;
+        font-size: 18px;
+      }
+
+      .nav-button.active {
+        background: var(--red);
+        color: white;
+        box-shadow: 0 0 20px rgba(220, 38, 38, 0.25);
+      }
+
+      .logout {
+        margin-top: auto;
+        width: 52px;
+        height: 52px;
+        border-radius: 18px;
+        border: 1px solid transparent;
+        background: transparent;
+        color: #4b5563;
+        font-size: 18px;
+      }
+
+      .content {
+        flex: 1;
+        padding: 36px 42px 60px;
+      }
+
+      .header {
+        margin-bottom: 28px;
+      }
+
+      .pill {
+        display: inline-block;
+        background: rgba(220, 38, 38, 0.08);
+        border: 1px solid rgba(220, 38, 38, 0.2);
+        color: var(--red);
+        border-radius: 999px;
+        padding: 8px 14px;
+        font-size: 10px;
+        font-weight: 900;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        margin: 18px 0 0;
+        font-size: clamp(3rem, 7vw, 8rem);
+        line-height: 0.8;
+        letter-spacing: -0.05em;
+        text-transform: uppercase;
+        font-style: italic;
+        font-weight: 900;
+      }
+
+      .interview-layout {
+        display: grid;
+        grid-template-columns: 340px minmax(0, 1fr);
+        gap: 24px;
+      }
+
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 32px;
+        box-shadow: 0 20px 50px rgba(0,0,0,0.3);
+      }
+
+      .left-panel {
+        padding: 22px 18px;
+      }
+
+      .panel-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 18px;
+      }
+
+      .panel-header h2 {
+        margin: 0;
+        font-size: 1.2rem;
+        text-transform: uppercase;
+        font-style: italic;
+      }
+
+      .count {
+        color: var(--muted);
+        font-size: 10px;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        font-weight: 900;
+      }
+
+      .add-opositor {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        margin-bottom: 18px;
+      }
+
+      .input, .textarea {
+        width: 100%;
+        background: rgba(0,0,0,0.4);
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        color: var(--text);
+        padding: 14px 16px;
+        font-size: 14px;
+        outline: none;
+      }
+
+      .input:focus, .textarea:focus {
+        border-color: rgba(220, 38, 38, 0.8);
+      }
+
+      .button-primary {
+        background: var(--red);
+        border: none;
+        color: white;
+        border-radius: 18px;
+        font-size: 10px;
+        font-weight: 900;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        padding: 14px 18px;
+        cursor: pointer;
+      }
+
+      .candidate-list {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .candidate {
+        background: rgba(0,0,0,0.25);
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 18px;
+        padding: 14px 14px 12px;
+        display: block;
+        width: 100%;
+        color: var(--text);
+        text-align: left;
+        cursor: pointer;
+      }
+
+      .candidate.active {
+        border-color: rgba(220, 38, 38, 0.8);
+        background: rgba(220, 38, 38, 0.1);
+      }
+
+      .candidate-name {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .candidate-name strong {
+        font-size: 1.1rem;
+        text-transform: uppercase;
+        font-style: italic;
+      }
+
+      .candidate-name span {
+        color: var(--muted);
+        font-size: 9px;
+        letter-spacing: 1.5px;
+        text-transform: uppercase;
+        font-weight: 900;
+      }
+
+      .candidate small {
+        display: block;
+        margin-top: 8px;
+        color: var(--muted);
+        font-size: 9px;
+        letter-spacing: 1.5px;
+        text-transform: uppercase;
+        font-weight: 900;
+      }
+
+      .right-panel {
+        padding: 24px 28px 30px;
+      }
+
+      .header-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 20px;
+      }
+
+      .header-row h3 {
+        margin: 0;
+        font-size: clamp(1.6rem, 3vw, 2.5rem);
+        text-transform: uppercase;
+        font-style: italic;
+      }
+
+      .delete-btn {
+        background: rgba(255,255,255,0.08);
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 12px;
+        color: white;
+        padding: 10px 14px;
+        font-size: 9px;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        font-weight: 900;
+      }
+
+      .form-card {
+        background: rgba(0,0,0,0.2);
+        border: 1px solid var(--line);
+        border-radius: 28px;
+        padding: 18px;
+        margin-bottom: 22px;
+      }
+
+      .label {
+        display: block;
+        color: var(--muted);
+        font-size: 9px;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        font-weight: 900;
+        margin-bottom: 8px;
+      }
+
+      .textarea {
+        min-height: 120px;
+        resize: vertical;
+      }
+
+      .question-list {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+
+      .question-card {
+        background: rgba(0,0,0,0.2);
+        border: 1px solid var(--line);
+        border-radius: 28px;
+        padding: 18px;
+      }
+
+      .question-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 10px;
+      }
+
+      .question-top strong {
+        font-size: 1.1rem;
+        text-transform: uppercase;
+        font-style: italic;
+      }
+
+      .checkbox {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 9px;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        font-weight: 900;
+        color: #d4d4d8;
+      }
+
+      .checkbox input {
+        width: 16px;
+        height: 16px;
+        accent-color: var(--red);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <aside class="sidebar">
+        <div class="logo">RTD</div>
+        <button class="nav-button">U</button>
+        <button class="nav-button">R</button>
+        <button class="nav-button active">M</button>
+        <button class="nav-button">B</button>
+        <button class="logout">↩</button>
+      </aside>
+
+      <main class="content">
+        <header class="header">
+          <div class="pill">[JEFA DE BATALLÓN] SYA</div>
+          <h1>Entrevistas</h1>
+        </header>
+
+        <div class="interview-layout">
+          <aside class="panel left-panel">
+            <div class="panel-header">
+              <h2>Opositores</h2>
+              <span class="count">3</span>
+            </div>
+
+            <form class="add-opositor">
+              <input class="input" type="text" value="Pedro Ruiz" aria-label="Nombre" />
+              <button class="button-primary" type="button">+ Añadir</button>
+            </form>
+
+            <div class="candidate-list">
+              <button class="candidate active" type="button">
+                <div class="candidate-name">
+                  <strong>Pablo León</strong>
+                  <span>1/3</span>
+                </div>
+                <small>Preguntas realizadas</small>
+              </button>
+
+              <button class="candidate" type="button">
+                <div class="candidate-name">
+                  <strong>Ana García</strong>
+                  <span>2/4</span>
+                </div>
+                <small>Preguntas realizadas</small>
+              </button>
+
+              <button class="candidate" type="button">
+                <div class="candidate-name">
+                  <strong>Pedro Ruiz</strong>
+                  <span>0/2</span>
+                </div>
+                <small>Preguntas realizadas</small>
+              </button>
+            </div>
+          </aside>
+
+          <section class="panel right-panel">
+            <div class="header-row">
+              <h3>Pablo León</h3>
+              <button class="delete-btn" type="button">Eliminar</button>
+            </div>
+
+            <form class="form-card">
+              <label class="label">Pregunta</label>
+              <input class="input" type="text" value="¿Qué entiende por liderazgo y responsabilidad?" />
+
+              <div style="height: 14px;"></div>
+
+              <label class="label">Respuesta</label>
+              <textarea class="textarea">El liderazgo se basa en liderar con ejemplo, mantener la calma bajo presión y ser responsable con cada decisión que afecte a la unidad.</textarea>
+
+              <div style="height: 16px;"></div>
+              <button class="button-primary" type="button">Guardar respuesta</button>
+            </form>
+
+            <div class="question-list">
+              <div class="question-card">
+                <div class="question-top">
+                  <strong>¿Qué entiende por liderazgo y responsabilidad?</strong>
+                  <label class="checkbox"><input type="checkbox" checked /> Pregunta realizada</label>
+                </div>
+                <textarea class="textarea">El liderazgo se basa en liderar con ejemplo, mantener la calma bajo presión y ser responsable con cada decisión que afecte a la unidad.</textarea>
+              </div>
+
+              <div class="question-card">
+                <div class="question-top">
+                  <strong>¿Cómo actuaría ante una emergencia?</strong>
+                  <label class="checkbox"><input type="checkbox" /> Pregunta realizada</label>
+                </div>
+                <textarea class="textarea">Primero evaluaría la situación, avisaría por radio, priorizaría la seguridad del público y coordinaría con el resto del equipo.</textarea>
+              </div>
+
+              <div class="question-card">
+                <div class="question-top">
+                  <strong>¿Qué valor aporta al equipo?</strong>
+                  <label class="checkbox"><input type="checkbox" checked /> Pregunta realizada</label>
+                </div>
+                <textarea class="textarea">Aporto disciplina, actitud de trabajo y capacidad para seguir instrucciones mientras mantengo la atención en el objetivo.</textarea>
+              </div>
+            </div>
+          </section>
+        </div>
+      </main>
+    </div>
+  </body>
+</html>
