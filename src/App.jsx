@@ -100,7 +100,7 @@ export default function App() {
   const [selectedInterviewId, setSelectedInterviewId] = useState(null);
   const [newInterviewQuestion, setNewInterviewQuestion] = useState('');
   const [newInterviewAnswer, setNewInterviewAnswer] = useState('');
-  const [selectedQuestionIds, setSelectedQuestionIds] = useState([]);
+  const [questionToFocusId, setQuestionToFocusId] = useState(null);
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newStudentName, setNewStudentName] = useState('');
@@ -165,6 +165,15 @@ export default function App() {
       window.localStorage.setItem('rtd-interviews', JSON.stringify(interviews));
     }
   }, [interviews]);
+
+  useEffect(() => {
+    if (!questionToFocusId) return;
+    const answerField = document.getElementById(`interview-answer-${questionToFocusId}`);
+    if (!answerField) return;
+    answerField.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    answerField.focus({ preventScroll: true });
+    setQuestionToFocusId(null);
+  }, [questionToFocusId, interviews]);
 
   useEffect(() => { if (!session) { const timer = setInterval(() => setCurrentSlide(prev => (prev + 1) % slides.length), 5000); return () => clearInterval(timer); } }, [session, slides.length]);
 
@@ -708,8 +717,7 @@ export default function App() {
     const newQuestion = {
       id: `question-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       text: newInterviewQuestion.trim(),
-      answer: newInterviewAnswer.trim(),
-      asked: false
+      answer: newInterviewAnswer.trim()
     };
 
     setInterviews(prev => prev.map(interview =>
@@ -722,28 +730,24 @@ export default function App() {
     setNewInterviewAnswer('');
   };
 
-  const handleAddSelectedInterviewQuestions = () => {
-    if (!selectedInterviewId || selectedQuestionIds.length === 0) return;
-
-    const selectedQuestions = INTERVIEW_QUESTION_BANK.flatMap(group => group.questions)
-      .filter(question => selectedQuestionIds.includes(question.id));
+  const handleAddBankInterviewQuestion = (question) => {
+    if (!selectedInterviewId) return;
+    const newQuestion = {
+      id: `question-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      bankId: question.id,
+      text: question.text,
+      answer: ''
+    };
 
     setInterviews(prev => prev.map(interview => {
       if (interview.id !== selectedInterviewId) return interview;
-      const existingBankIds = new Set(interview.questions.map(question => question.bankId));
-      const questionsToAdd = selectedQuestions
-        .filter(question => !existingBankIds.has(question.id))
-        .map(question => ({
-          id: `question-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-          bankId: question.id,
-          text: question.text,
-          answer: '',
-          asked: false
-        }));
-      return { ...interview, questions: [...interview.questions, ...questionsToAdd] };
+      if (interview.questions.some(item => item.bankId === question.id)) return interview;
+      return {
+        ...interview,
+        questions: [...interview.questions, newQuestion]
+      };
     }));
-
-    setSelectedQuestionIds([]);
+    setQuestionToFocusId(newQuestion.id);
   };
 
   const updateInterviewAttendance = (attendance) => {
@@ -761,18 +765,6 @@ export default function App() {
         ...interview,
         questions: interview.questions.map(question =>
           question.id === questionId ? { ...question, answer: value } : question
-        )
-      };
-    }));
-  };
-
-  const toggleInterviewQuestion = (questionId) => {
-    setInterviews(prev => prev.map(interview => {
-      if (interview.id !== selectedInterviewId) return interview;
-      return {
-        ...interview,
-        questions: interview.questions.map(question =>
-          question.id === questionId ? { ...question, asked: !question.asked } : question
         )
       };
     }));
@@ -1296,7 +1288,7 @@ export default function App() {
                         </div>
                       ) : (
                         interviews.map(interview => {
-                          const askedCount = interview.questions.filter(question => question.asked).length;
+                          const answeredCount = interview.questions.filter(question => question.answer?.trim()).length;
                           const isSelected = selectedInterviewId === interview.id;
                           const attendanceLabel = interview.attendance === 'presente' ? 'Presente' : interview.attendance === 'ausente' ? 'Ausente' : 'Pendiente';
 
@@ -1304,18 +1296,15 @@ export default function App() {
                             <button
                               key={interview.id}
                               type="button"
-                              onClick={() => {
-                                setSelectedInterviewId(interview.id);
-                                setSelectedQuestionIds([]);
-                              }}
+                              onClick={() => setSelectedInterviewId(interview.id)}
                               className={`w-full text-left rounded-2xl border p-4 transition-all ${isSelected ? 'border-red-600 bg-red-600/10' : 'border-white/10 bg-black/20 hover:border-white/20'}`}
                             >
                               <div className="flex items-center justify-between gap-3">
                                 <span className="font-black italic uppercase tracking-tighter text-lg">{interview.name}</span>
-                                <span className="text-[9px] font-black uppercase tracking-widest text-zinc-500 italic">{askedCount}/{interview.questions.length}</span>
+                                <span className="text-[9px] font-black uppercase tracking-widest text-zinc-500 italic">{answeredCount}/{interview.questions.length}</span>
                               </div>
                               <div className="mt-2 flex items-center justify-between gap-2 text-[9px] font-black uppercase tracking-widest text-zinc-500 italic">
-                                <span>preguntas realizadas</span>
+                                <span>respuestas completadas</span>
                                 <span className={`rounded-full px-2 py-1 ${interview.attendance === 'presente' ? 'bg-green-600/20 text-green-400' : interview.attendance === 'ausente' ? 'bg-red-600/20 text-red-400' : 'bg-yellow-600/20 text-yellow-400'}`}>
                                   {attendanceLabel}
                                 </span>
@@ -1371,50 +1360,62 @@ export default function App() {
                                 </select>
                               </div>
 
-                              {isAdmin && (
-                                <div className="space-y-5 mb-8 border border-white/10 bg-black/20 rounded-[2rem] p-5">
-                                  <div>
-                                    <h4 className="text-sm font-black uppercase tracking-widest">Banco de preguntas</h4>
-                                    <p className="mt-1 text-xs text-zinc-500">Selecciona las preguntas que quieras incluir en esta ficha.</p>
-                                  </div>
-                                  {INTERVIEW_QUESTION_BANK.map(group => (
-                                    <details key={group.category} open className="border-t border-white/10 pt-4">
-                                      <summary className="cursor-pointer text-[10px] font-black uppercase tracking-widest text-red-400">{group.category}</summary>
-                                      <div className="mt-3 space-y-2">
-                                        {group.questions.map(question => {
-                                          const alreadyAdded = selectedInterview.questions.some(item => item.bankId === question.id);
-                                          const isChecked = alreadyAdded || selectedQuestionIds.includes(question.id);
-                                          return (
-                                            <label key={question.id} className={`flex items-start gap-3 rounded-xl border border-white/5 p-3 text-sm ${alreadyAdded ? 'text-zinc-600' : 'text-zinc-300 hover:bg-white/5'}`}>
-                                              <input
-                                                type="checkbox"
-                                                checked={isChecked}
-                                                disabled={alreadyAdded}
-                                                onChange={() => setSelectedQuestionIds(prev => isChecked ? prev.filter(id => id !== question.id) : [...prev, question.id])}
-                                                className="mt-1 h-4 w-4 shrink-0 accent-red-600"
-                                              />
-                                              <span>{question.text}</span>
-                                            </label>
-                                          );
-                                        })}
-                                      </div>
-                                    </details>
-                                  ))}
-                                  <button
-                                    type="button"
-                                    onClick={handleAddSelectedInterviewQuestions}
-                                    disabled={selectedQuestionIds.length === 0}
-                                    className="bg-red-600 hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-40 text-white rounded-2xl py-3 px-5 text-[10px] font-black uppercase tracking-widest transition-all"
-                                  >
-                                    Añadir seleccionadas ({selectedQuestionIds.length})
-                                  </button>
+                              <div className="space-y-5 mb-8 border border-white/10 bg-black/20 rounded-[2rem] p-5">
+                                <div>
+                                  <h4 className="text-sm font-black uppercase tracking-widest">Banco de preguntas</h4>
+                                  <p className="mt-1 text-xs text-zinc-500">Elige una pregunta para añadirla a esta ficha y escribir la respuesta.</p>
                                 </div>
-                              )}
+                                {INTERVIEW_QUESTION_BANK.map(group => (
+                                  <details key={group.category} className="border-t border-white/10 pt-4">
+                                    <summary className="cursor-pointer text-[10px] font-black uppercase tracking-widest text-red-400">{group.category} ({group.questions.length})</summary>
+                                    <div className="mt-3 space-y-2">
+                                      {group.questions.map(question => {
+                                        const alreadyAdded = selectedInterview.questions.some(item => item.bankId === question.id);
+                                        return (
+                                          <button
+                                            key={question.id}
+                                            type="button"
+                                            disabled={alreadyAdded}
+                                            onClick={() => handleAddBankInterviewQuestion(question)}
+                                            className="flex w-full items-start justify-between gap-4 rounded-xl border border-white/5 p-3 text-left text-sm text-zinc-300 transition-colors hover:border-red-600/50 hover:bg-white/5 disabled:cursor-default disabled:opacity-40"
+                                          >
+                                            <span>{question.text}</span>
+                                            <span className="shrink-0 text-[9px] font-black uppercase tracking-widest text-red-400">{alreadyAdded ? 'Añadida' : 'Elegir'}</span>
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                  </details>
+                                ))}
+                              </div>
+
+                              <div className="space-y-4">
+                                {selectedInterview.questions.length === 0 ? (
+                                  <div className="bg-black/20 border border-dashed border-white/10 rounded-2xl p-8 text-center text-zinc-500 italic">
+                                    No hay preguntas registradas aún.
+                                  </div>
+                                ) : (
+                                  selectedInterview.questions.map(question => (
+                                    <div key={question.id} className="border border-white/10 bg-black/20 rounded-[2rem] p-5">
+                                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+                                        <div className="text-base font-black italic uppercase tracking-tighter">{question.text}</div>
+                                      </div>
+                                      <textarea
+                                        id={`interview-answer-${question.id}`}
+                                        value={question.answer}
+                                        onChange={e => updateInterviewQuestionAnswer(question.id, e.target.value)}
+                                        placeholder="Escribe la respuesta aquí..."
+                                        className="w-full bg-black/40 border border-white/10 rounded-2xl py-4 px-5 text-white font-bold outline-none focus:border-red-600 min-h-[120px] resize-none"
+                                      />
+                                    </div>
+                                  ))
+                                )}
+                              </div>
 
                               {isAdmin && (
-                                <form onSubmit={handleAddInterviewQuestion} className="space-y-4 mb-8 border border-white/10 bg-black/20 rounded-[2rem] p-5">
+                                <form onSubmit={handleAddInterviewQuestion} className="mt-8 space-y-4 border border-white/10 bg-black/20 rounded-[2rem] p-5">
                                   <div>
-                                    <label className="block text-[9px] font-black uppercase tracking-widest text-zinc-500 italic mb-2">Pregunta</label>
+                                    <label className="block text-[9px] font-black uppercase tracking-widest text-zinc-500 italic mb-2">Pregunta personalizada</label>
                                     <input
                                       type="text"
                                       value={newInterviewQuestion}
@@ -1433,41 +1434,10 @@ export default function App() {
                                     />
                                   </div>
                                   <button type="submit" className="bg-red-600 hover:bg-red-700 text-white rounded-2xl py-3 px-5 text-[10px] font-black uppercase tracking-widest transition-all">
-                                    Guardar respuesta
+                                    Guardar pregunta personalizada
                                   </button>
                                 </form>
                               )}
-
-                              <div className="space-y-4">
-                                {selectedInterview.questions.length === 0 ? (
-                                  <div className="bg-black/20 border border-dashed border-white/10 rounded-2xl p-8 text-center text-zinc-500 italic">
-                                    No hay preguntas registradas aún.
-                                  </div>
-                                ) : (
-                                  selectedInterview.questions.map(question => (
-                                    <div key={question.id} className="border border-white/10 bg-black/20 rounded-[2rem] p-5">
-                                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-                                        <div className="text-base font-black italic uppercase tracking-tighter">{question.text}</div>
-                                        <label className="inline-flex items-center gap-2 text-[9px] font-black uppercase tracking-widest text-zinc-300">
-                                          <input
-                                            type="checkbox"
-                                            checked={question.asked}
-                                            onChange={() => toggleInterviewQuestion(question.id)}
-                                            className="h-4 w-4 accent-red-600"
-                                          />
-                                          Pregunta realizada
-                                        </label>
-                                      </div>
-                                      <textarea
-                                        value={question.answer}
-                                        onChange={e => updateInterviewQuestionAnswer(question.id, e.target.value)}
-                                        placeholder="Escribe la respuesta aquí..."
-                                        className="w-full bg-black/40 border border-white/10 rounded-2xl py-4 px-5 text-white font-bold outline-none focus:border-red-600 min-h-[120px] resize-none"
-                                      />
-                                    </div>
-                                  ))
-                                )}
-                              </div>
                             </>
                           );
                         })()}
