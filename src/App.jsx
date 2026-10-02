@@ -102,6 +102,7 @@ export default function App() {
   const [newInterviewAnswer, setNewInterviewAnswer] = useState('');
   const [questionToFocusId, setQuestionToFocusId] = useState(null);
   const [interviewAnswerDrafts, setInterviewAnswerDrafts] = useState({});
+  const [editingInterviewAnswers, setEditingInterviewAnswers] = useState({});
   const [interviewBankCategory, setInterviewBankCategory] = useState(INTERVIEW_QUESTION_BANK[0].category);
   const [isInterviewBankOpen, setIsInterviewBankOpen] = useState(false);
   const [interviewBankSearch, setInterviewBankSearch] = useState('');
@@ -852,6 +853,7 @@ export default function App() {
       delete next[questionId];
       return next;
     });
+    setEditingInterviewAnswers(prev => ({ ...prev, [questionId]: false }));
   };
 
   const deleteInterviewQuestion = async (questionId) => {
@@ -865,6 +867,11 @@ export default function App() {
     if (!await persistInterviewRecord(updatedInterview)) return;
     setInterviews(prev => prev.map(item => item.id === selectedInterviewId ? updatedInterview : item));
     setInterviewAnswerDrafts(prev => {
+      const next = { ...prev };
+      delete next[questionId];
+      return next;
+    });
+    setEditingInterviewAnswers(prev => {
       const next = { ...prev };
       delete next[questionId];
       return next;
@@ -1439,6 +1446,8 @@ export default function App() {
                         {(() => {
                           const selectedInterview = interviews.find(interview => interview.id === selectedInterviewId);
                           const selectedQuestionGroup = INTERVIEW_QUESTION_BANK.find(group => group.category === interviewBankCategory) || INTERVIEW_QUESTION_BANK[0];
+                          const pendingQuestions = selectedInterview.questions.filter(question => !question.answer?.trim());
+                          const savedAnswers = selectedInterview.questions.filter(question => question.answer?.trim());
                           return (
                             <>
                               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
@@ -1587,16 +1596,24 @@ export default function App() {
                                 </div>
                               )}
 
-                              <div className="space-y-4">
+                              <section className="space-y-4">
+                                <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                                  <h4 className="text-sm font-black uppercase tracking-widest">Preguntas pendientes</h4>
+                                  <span className="text-xs font-bold text-zinc-500">{pendingQuestions.length}</span>
+                                </div>
                                 {selectedInterview.questions.length === 0 ? (
-                                  <div className="bg-black/20 border border-dashed border-white/10 rounded-2xl p-8 text-center text-zinc-500 italic">
-                                    No hay preguntas registradas aún.
+                                  <div className="rounded-2xl border border-dashed border-white/10 bg-black/20 p-8 text-center text-sm text-zinc-500">
+                                    Elige preguntas del banco para empezar la entrevista.
+                                  </div>
+                                ) : pendingQuestions.length === 0 ? (
+                                  <div className="rounded-2xl border border-dashed border-white/10 bg-black/20 p-6 text-center text-sm text-zinc-500">
+                                    Todas las preguntas tienen respuesta.
                                   </div>
                                 ) : (
-                                  selectedInterview.questions.map(question => (
-                                    <div key={question.id} className="border border-white/10 bg-black/20 rounded-[2rem] p-5">
+                                  pendingQuestions.map(question => (
+                                    <div key={question.id} className="rounded-2xl border border-white/10 bg-black/20 p-5">
                                       <div className="mb-4 flex items-start justify-between gap-3">
-                                        <div className="text-base font-black italic uppercase tracking-tighter">{question.text}</div>
+                                        <div className="text-base font-black italic uppercase tracking-tight">{question.text}</div>
                                         <button
                                           type="button"
                                           onClick={() => deleteInterviewQuestion(question.id)}
@@ -1612,18 +1629,13 @@ export default function App() {
                                         value={interviewAnswerDrafts[question.id] ?? question.answer ?? ''}
                                         onChange={e => updateInterviewQuestionAnswerDraft(question.id, e.target.value)}
                                         placeholder="Escribe la respuesta aquí..."
-                                        className="w-full bg-black/40 border border-white/10 rounded-2xl py-4 px-5 text-white font-bold outline-none focus:border-red-600 min-h-[120px] resize-none"
+                                        className="min-h-[120px] w-full resize-y rounded-xl border border-white/10 bg-black/40 px-4 py-3 text-sm leading-relaxed text-white outline-none focus:border-red-600"
                                       />
-                                      <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-                                        <span aria-live="polite" className={`text-xs ${Object.hasOwn(interviewAnswerDrafts, question.id) && interviewAnswerDrafts[question.id] !== (question.answer ?? '') ? 'text-amber-400' : question.answer?.trim() ? 'text-green-400' : 'text-zinc-500'}`}>
-                                          {Object.hasOwn(interviewAnswerDrafts, question.id) && interviewAnswerDrafts[question.id] !== (question.answer ?? '')
-                                            ? 'Cambios sin guardar'
-                                            : question.answer?.trim() ? 'Guardada en Supabase' : 'Respuesta pendiente'}
-                                        </span>
+                                      <div className="mt-3 flex justify-end">
                                         <button
                                           type="button"
                                           onClick={() => saveInterviewQuestionAnswer(question.id)}
-                                          disabled={!Object.hasOwn(interviewAnswerDrafts, question.id) || interviewAnswerDrafts[question.id] === (question.answer ?? '')}
+                                          disabled={!interviewAnswerDrafts[question.id]?.trim() || interviewAnswerDrafts[question.id] === (question.answer ?? '')}
                                           className="rounded-xl bg-red-600 px-4 py-3 text-[10px] font-black uppercase tracking-widest text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-40"
                                         >
                                           Guardar respuesta
@@ -1632,7 +1644,100 @@ export default function App() {
                                     </div>
                                   ))
                                 )}
-                              </div>
+                              </section>
+
+                              <section className="mt-10 space-y-4">
+                                <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                                  <div>
+                                    <h4 className="text-sm font-black uppercase tracking-widest">Respuestas</h4>
+                                    <p className="mt-1 text-xs text-zinc-500">Respuestas guardadas de la entrevista</p>
+                                  </div>
+                                  <span className="text-xs font-bold text-zinc-500">{savedAnswers.length}</span>
+                                </div>
+                                {savedAnswers.length === 0 ? (
+                                  <div className="rounded-2xl border border-dashed border-white/10 bg-black/20 p-6 text-center text-sm text-zinc-500">
+                                    Las respuestas guardadas aparecerán aquí.
+                                  </div>
+                                ) : (
+                                  savedAnswers.map(question => {
+                                    const isEditing = editingInterviewAnswers[question.id] === true;
+                                    return (
+                                      <article key={question.id} className="overflow-hidden rounded-2xl border border-emerald-500/20 bg-emerald-950/10">
+                                        <div className="border-b border-white/5 px-5 py-4">
+                                          <div className="flex items-start justify-between gap-3">
+                                            <div>
+                                              <div className="mb-2 text-[9px] font-black uppercase tracking-widest text-emerald-400">Respuesta {String(savedAnswers.indexOf(question) + 1).padStart(2, '0')}</div>
+                                              <h5 className="text-sm font-black leading-relaxed text-white">{question.text}</h5>
+                                            </div>
+                                            <button
+                                              type="button"
+                                              onClick={() => deleteInterviewQuestion(question.id)}
+                                              aria-label="Eliminar pregunta y respuesta"
+                                              title="Eliminar pregunta y respuesta"
+                                              className="shrink-0 rounded-lg border border-white/10 p-2 text-zinc-400 transition-colors hover:border-red-600/50 hover:bg-red-600/10 hover:text-red-400"
+                                            >
+                                              <Trash2 className="h-4 w-4" />
+                                            </button>
+                                          </div>
+                                        </div>
+                                        <div className="p-5">
+                                          {isEditing ? (
+                                            <>
+                                              <textarea
+                                                autoFocus
+                                                value={interviewAnswerDrafts[question.id] ?? question.answer}
+                                                onChange={e => updateInterviewQuestionAnswerDraft(question.id, e.target.value)}
+                                                className="min-h-[120px] w-full resize-y rounded-xl border border-white/10 bg-black/40 px-4 py-3 text-sm leading-relaxed text-white outline-none focus:border-red-600"
+                                              />
+                                              <div className="mt-3 flex flex-wrap justify-end gap-2">
+                                                <button
+                                                  type="button"
+                                                  onClick={() => {
+                                                    setInterviewAnswerDrafts(prev => {
+                                                      const next = { ...prev };
+                                                      delete next[question.id];
+                                                      return next;
+                                                    });
+                                                    setEditingInterviewAnswers(prev => ({ ...prev, [question.id]: false }));
+                                                  }}
+                                                  className="rounded-xl border border-white/10 px-4 py-3 text-[10px] font-black uppercase tracking-widest text-zinc-300 transition-colors hover:bg-white/5"
+                                                >
+                                                  Cancelar
+                                                </button>
+                                                <button
+                                                  type="button"
+                                                  onClick={() => saveInterviewQuestionAnswer(question.id)}
+                                                  disabled={!Object.hasOwn(interviewAnswerDrafts, question.id) || interviewAnswerDrafts[question.id] === question.answer}
+                                                  className="rounded-xl bg-red-600 px-4 py-3 text-[10px] font-black uppercase tracking-widest text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-40"
+                                                >
+                                                  Guardar cambios
+                                                </button>
+                                              </div>
+                                            </>
+                                          ) : (
+                                            <>
+                                              <p className="whitespace-pre-wrap text-sm leading-relaxed text-zinc-300">{question.answer}</p>
+                                              <div className="mt-4 flex justify-end">
+                                                <button
+                                                  type="button"
+                                                  onClick={() => {
+                                                    setInterviewAnswerDrafts(prev => ({ ...prev, [question.id]: question.answer }));
+                                                    setEditingInterviewAnswers(prev => ({ ...prev, [question.id]: true }));
+                                                  }}
+                                                  className="inline-flex items-center gap-2 rounded-xl border border-white/10 px-4 py-3 text-[10px] font-black uppercase tracking-widest text-zinc-300 transition-colors hover:border-red-500/50 hover:text-white"
+                                                >
+                                                  <Edit2 className="h-3.5 w-3.5" />
+                                                  Editar
+                                                </button>
+                                              </div>
+                                            </>
+                                          )}
+                                        </div>
+                                      </article>
+                                    );
+                                  })
+                                )}
+                              </section>
 
                               {isAdmin && (
                                 <form onSubmit={handleAddInterviewQuestion} className="mt-8 space-y-4 border border-white/10 bg-black/20 rounded-[2rem] p-5">
