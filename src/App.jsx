@@ -103,7 +103,9 @@ export default function App() {
   const [questionToFocusId, setQuestionToFocusId] = useState(null);
   const [interviewAnswerDrafts, setInterviewAnswerDrafts] = useState({});
   const [interviewBankCategory, setInterviewBankCategory] = useState(INTERVIEW_QUESTION_BANK[0].category);
-  const [newBankQuestionId, setNewBankQuestionId] = useState('');
+  const [isInterviewBankOpen, setIsInterviewBankOpen] = useState(false);
+  const [interviewBankSearch, setInterviewBankSearch] = useState('');
+  const [interviewSyncError, setInterviewSyncError] = useState('');
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newStudentName, setNewStudentName] = useState('');
@@ -407,8 +409,77 @@ export default function App() {
     return FileText;
   };
 
+  const persistInterviewRecord = async (interview, client = supabase) => {
+    if (!client) return false;
+    const { error } = await client.from('interviews').upsert({
+      client_id: interview.id,
+      name: interview.name,
+      attendance: interview.attendance || 'pendiente',
+      questions: interview.questions || []
+    }, { onConflict: 'client_id' });
+
+    if (error) {
+      console.error('Error saving interview:', error);
+      setInterviewSyncError(`No se pudo guardar en Supabase: ${error.message}`);
+      return false;
+    }
+
+    setInterviewSyncError('');
+    return true;
+  };
+
+  const fetchInterviewRecords = async (client) => {
+    const { data: remoteRows, error } = await client
+      .from('interviews')
+      .select('id, client_id, name, attendance, questions')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching interviews:', error);
+      setInterviewSyncError(`No se pudieron cargar las entrevistas: ${error.message}`);
+      return;
+    }
+
+    let localRows = [];
+    try {
+      localRows = JSON.parse(window.localStorage.getItem('rtd-interviews') || '[]');
+    } catch {
+      localRows = [];
+    }
+
+    const knownIds = new Set((remoteRows || []).map(row => row.client_id || row.id));
+    const failedLocalRows = [];
+    for (const interview of localRows) {
+      if (!interview?.id || knownIds.has(interview.id)) continue;
+      const saved = await persistInterviewRecord(interview, client);
+      if (saved) knownIds.add(interview.id);
+      else failedLocalRows.push(interview);
+    }
+
+    const { data: syncedRows, error: syncError } = await client
+      .from('interviews')
+      .select('id, client_id, name, attendance, questions')
+      .order('created_at', { ascending: false });
+
+    if (syncError) {
+      console.error('Error refreshing interviews:', syncError);
+      setInterviewSyncError(`No se pudieron actualizar las entrevistas: ${syncError.message}`);
+      return;
+    }
+
+    const normalizedRows = (syncedRows || []).map(row => ({
+      id: row.client_id || row.id,
+      name: row.name,
+      attendance: row.attendance || 'pendiente',
+      questions: Array.isArray(row.questions) ? row.questions : []
+    }));
+    setInterviews([...normalizedRows, ...failedLocalRows.filter(local => !knownIds.has(local.id))]);
+    if (failedLocalRows.length === 0) setInterviewSyncError('');
+  };
+
   async function fetchAllData(client = supabase) {
     if (!client) return;
+    await fetchInterviewRecords(client);
     try {
       const { data: stds, error: stdErr } = await client.from('students').select('*').order('name');
       const { data: ress, error: resErr } = await client.from('resources').select('*').order('created_at', { ascending: false });
@@ -696,7 +767,7 @@ export default function App() {
     }
   };
 
-  const handleAddInterviewee = (e) => {
+  const handleAddInterviewee = async (e) => {
     e.preventDefault();
     const cleanedName = newInterviewName.trim();
     if (!cleanedName) return;
@@ -708,12 +779,13 @@ export default function App() {
       questions: []
     };
 
+    if (!await persistInterviewRecord(newInterview)) return;
     setInterviews(prev => [newInterview, ...prev]);
     setSelectedInterviewId(newInterview.id);
     setNewInterviewName('');
   };
 
-  const handleAddInterviewQuestion = (e) => {
+  const handleAddInterviewQuestion = async (e) => {
     e.preventDefault();
     if (!isAdmin || !selectedInterviewId || !newInterviewQuestion.trim()) return;
 
@@ -723,61 +795,58 @@ export default function App() {
       answer: newInterviewAnswer.trim()
     };
 
-    setInterviews(prev => prev.map(interview =>
-      interview.id === selectedInterviewId
-        ? { ...interview, questions: [...interview.questions, newQuestion] }
-        : interview
-    ));
+    const interview = interviews.find(item => item.id === selectedInterviewId);
+    if (!interview) return;
+    const updatedInterview = { ...interview, questions: [...interview.questions, newQuestion] };
+    if (!await persistInterviewRecord(updatedInterview)) return;
+    setInterviews(prev => prev.map(item => item.id === selectedInterviewId ? updatedInterview : item));
 
     setNewInterviewQuestion('');
     setNewInterviewAnswer('');
   };
 
-  const handleAddBankInterviewQuestion = (question) => {
+  const handleAddBankInterviewQuestion = async (question) => {
     if (!selectedInterviewId) return;
+    const interview = interviews.find(item => item.id === selectedInterviewId);
+    if (!interview || interview.questions.some(item => item.bankId === question.id)) return;
     const newQuestion = {
       id: `question-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       bankId: question.id,
       text: question.text,
       answer: ''
     };
-
-    setInterviews(prev => prev.map(interview => {
-      if (interview.id !== selectedInterviewId) return interview;
-      if (interview.questions.some(item => item.bankId === question.id)) return interview;
-      return {
-        ...interview,
-        questions: [...interview.questions, newQuestion]
-      };
-    }));
-    setNewBankQuestionId('');
+    const updatedInterview = { ...interview, questions: [...interview.questions, newQuestion] };
+    if (!await persistInterviewRecord(updatedInterview)) return;
+    setInterviews(prev => prev.map(item => item.id === selectedInterviewId ? updatedInterview : item));
+    setIsInterviewBankOpen(false);
     setQuestionToFocusId(newQuestion.id);
   };
 
-  const updateInterviewAttendance = (attendance) => {
-    setInterviews(prev => prev.map(interview =>
-      interview.id === selectedInterviewId
-        ? { ...interview, attendance }
-        : interview
-    ));
+  const updateInterviewAttendance = async (attendance) => {
+    const interview = interviews.find(item => item.id === selectedInterviewId);
+    if (!interview) return;
+    const updatedInterview = { ...interview, attendance };
+    if (!await persistInterviewRecord(updatedInterview)) return;
+    setInterviews(prev => prev.map(item => item.id === selectedInterviewId ? updatedInterview : item));
   };
 
   const updateInterviewQuestionAnswerDraft = (questionId, value) => {
     setInterviewAnswerDrafts(prev => ({ ...prev, [questionId]: value }));
   };
 
-  const saveInterviewQuestionAnswer = (questionId) => {
+  const saveInterviewQuestionAnswer = async (questionId) => {
     if (!Object.hasOwn(interviewAnswerDrafts, questionId)) return;
+    const interview = interviews.find(item => item.id === selectedInterviewId);
+    if (!interview) return;
     const answer = interviewAnswerDrafts[questionId];
-    setInterviews(prev => prev.map(interview => {
-      if (interview.id !== selectedInterviewId) return interview;
-      return {
-        ...interview,
-        questions: interview.questions.map(question =>
-          question.id === questionId ? { ...question, answer } : question
-        )
-      };
-    }));
+    const updatedInterview = {
+      ...interview,
+      questions: interview.questions.map(question =>
+        question.id === questionId ? { ...question, answer } : question
+      )
+    };
+    if (!await persistInterviewRecord(updatedInterview)) return;
+    setInterviews(prev => prev.map(item => item.id === selectedInterviewId ? updatedInterview : item));
     setInterviewAnswerDrafts(prev => {
       const next = { ...prev };
       delete next[questionId];
@@ -785,12 +854,16 @@ export default function App() {
     });
   };
 
-  const deleteInterviewQuestion = (questionId) => {
+  const deleteInterviewQuestion = async (questionId) => {
     if (typeof window !== 'undefined' && !window.confirm('¿Eliminar esta pregunta y su respuesta de la ficha?')) return;
-    setInterviews(prev => prev.map(interview => interview.id === selectedInterviewId
-      ? { ...interview, questions: interview.questions.filter(question => question.id !== questionId) }
-      : interview
-    ));
+    const interview = interviews.find(item => item.id === selectedInterviewId);
+    if (!interview) return;
+    const updatedInterview = {
+      ...interview,
+      questions: interview.questions.filter(question => question.id !== questionId)
+    };
+    if (!await persistInterviewRecord(updatedInterview)) return;
+    setInterviews(prev => prev.map(item => item.id === selectedInterviewId ? updatedInterview : item));
     setInterviewAnswerDrafts(prev => {
       const next = { ...prev };
       delete next[questionId];
@@ -798,7 +871,14 @@ export default function App() {
     });
   };
 
-  const deleteInterview = (interviewId) => {
+  const deleteInterview = async (interviewId) => {
+    const { error } = await supabase.from('interviews').delete().eq('client_id', interviewId);
+    if (error) {
+      console.error('Error deleting interview:', error);
+      setInterviewSyncError(`No se pudo eliminar en Supabase: ${error.message}`);
+      return;
+    }
+    setInterviewSyncError('');
     setInterviews(prev => prev.filter(interview => interview.id !== interviewId));
     setSelectedInterviewId(prev => prev === interviewId ? null : prev);
   };
@@ -855,7 +935,7 @@ export default function App() {
           <button onClick={() => { setActiveTab('entrevistas'); setSelectedStudent(null); }} className={`p-3 md:p-4 rounded-2xl transition-all ${activeTab === 'entrevistas' ? 'bg-red-600 text-white shadow-xl shadow-red-600/10' : 'text-zinc-600 hover:text-white'}`}><MessageSquare className="w-5 h-5 md:w-6 md:h-6" /></button>
           <button onClick={() => { setActiveTab('recursos'); setSelectedStudent(null); }} className={`p-3 md:p-4 rounded-2xl transition-all ${activeTab === 'recursos' ? 'bg-red-600 text-white shadow-xl shadow-red-600/10' : 'text-zinc-600 hover:text-white'}`}><BookOpen className="w-5 h-5 md:w-6 md:h-6" /></button>
         </nav>
-        <button onClick={() => { supabase.auth.signOut(); window.localStorage.clear(); window.location.reload(); }} className="ml-auto md:ml-0 md:mt-auto p-3 md:p-4 text-zinc-800 hover:text-red-600 transition-all"><LogOut className="w-5 h-5 md:w-6 md:h-6" /></button>
+        <button onClick={async () => { await supabase.auth.signOut(); window.location.reload(); }} className="ml-auto md:ml-0 md:mt-auto p-3 md:p-4 text-zinc-800 hover:text-red-600 transition-all"><LogOut className="w-5 h-5 md:w-6 md:h-6" /></button>
       </aside>
 
       <main className="flex-1 p-4 sm:p-6 md:p-16 overflow-y-auto relative z-10">
@@ -1289,6 +1369,11 @@ export default function App() {
 
             {activeTab === 'entrevistas' && (
               <div className="space-y-8">
+                {interviewSyncError && (
+                  <div role="alert" className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+                    {interviewSyncError}
+                  </div>
+                )}
                 <div className="grid grid-cols-1 xl:grid-cols-[340px_minmax(0,1fr)] gap-6">
                   <aside className="bg-white/5 border border-white/10 rounded-[2rem] p-6 backdrop-blur-md shadow-2xl">
                     <div className="flex items-center justify-between mb-6">
@@ -1389,49 +1474,118 @@ export default function App() {
                                 </select>
                               </div>
 
-                              <div className="mb-8 space-y-4 rounded-2xl border border-white/10 bg-black/30 p-4 md:p-5">
-                                <div className="flex flex-wrap items-center justify-between gap-3">
-                                  <div>
-                                    <h4 className="text-sm font-black uppercase tracking-widest">Banco de preguntas</h4>
-                                    <p className="mt-1 text-xs text-zinc-500">Elige una pregunta y aparecerá su respuesta en la ficha.</p>
-                                  </div>
-                                  <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">{selectedInterview.questions.length} elegidas</span>
-                                </div>
-                                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                                  {INTERVIEW_QUESTION_BANK.map(group => (
-                                    <button
-                                      key={group.category}
-                                      type="button"
-                                      onClick={() => {
-                                        setInterviewBankCategory(group.category);
-                                        setNewBankQuestionId('');
-                                      }}
-                                      className={`flex min-h-14 items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left transition-colors ${interviewBankCategory === group.category ? 'border-red-600 bg-red-600/15 text-white' : 'border-white/10 bg-white/[0.03] text-zinc-400 hover:border-white/20 hover:text-white'}`}
-                                    >
-                                      <span className="text-xs font-black uppercase tracking-wide">{group.category}</span>
-                                      <span className="text-[10px] font-bold text-red-400">{group.questions.length}</span>
-                                    </button>
-                                  ))}
-                                </div>
-                                <select
-                                  value={newBankQuestionId}
-                                  onChange={event => {
-                                    const question = selectedQuestionGroup.questions.find(item => item.id === event.target.value);
-                                    if (question) handleAddBankInterviewQuestion(question);
+                              <button
+                                type="button"
+                                onClick={() => setIsInterviewBankOpen(true)}
+                                className="mb-8 flex w-full items-center justify-between gap-4 rounded-2xl border border-red-600/30 bg-red-600/[0.08] p-5 text-left transition-colors hover:border-red-500/70 hover:bg-red-600/[0.13]"
+                              >
+                                <span className="flex items-center gap-4">
+                                  <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-red-600 text-white"><BookOpen className="h-5 w-5" /></span>
+                                  <span>
+                                    <span className="block text-sm font-black uppercase tracking-widest">Banco de preguntas</span>
+                                    <span className="mt-1 block text-xs text-zinc-400">Explora las dos categorías y elige una pregunta</span>
+                                  </span>
+                                </span>
+                                <span className="shrink-0 text-right">
+                                  <span className="block text-lg font-black text-white">{selectedInterview.questions.length}</span>
+                                  <span className="block text-[9px] font-black uppercase tracking-widest text-zinc-500">elegidas</span>
+                                </span>
+                              </button>
+
+                              {isInterviewBankOpen && (
+                                <div
+                                  className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-3 backdrop-blur-sm sm:p-6"
+                                  onClick={() => setIsInterviewBankOpen(false)}
+                                  onKeyDown={event => {
+                                    if (event.key === 'Escape') setIsInterviewBankOpen(false);
                                   }}
-                                  className="w-full rounded-xl border border-white/10 bg-zinc-900 px-4 py-3 text-sm text-white outline-none focus:border-red-600"
                                 >
-                                  <option value="">Elegir pregunta de {selectedQuestionGroup.category.toLowerCase()}...</option>
-                                  {selectedQuestionGroup.questions.map(question => {
-                                    const alreadyAdded = selectedInterview.questions.some(item => item.bankId === question.id);
-                                    return (
-                                      <option key={question.id} value={question.id} disabled={alreadyAdded}>
-                                        {alreadyAdded ? 'Añadida · ' : ''}{question.text}
-                                      </option>
-                                    );
-                                  })}
-                                </select>
-                              </div>
+                                  <section
+                                    role="dialog"
+                                    aria-modal="true"
+                                    aria-labelledby="interview-bank-title"
+                                    onClick={event => event.stopPropagation()}
+                                    className="flex max-h-[min(88vh,850px)] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-zinc-950 shadow-2xl shadow-black/60"
+                                  >
+                                    <header className="flex items-start justify-between gap-4 border-b border-white/10 bg-gradient-to-r from-red-950/70 to-zinc-950 px-5 py-5 sm:px-7">
+                                      <div>
+                                        <div className="mb-2 text-[9px] font-black uppercase tracking-[0.2em] text-red-400">Ficha de {selectedInterview.name}</div>
+                                        <h3 id="interview-bank-title" className="text-xl font-black uppercase tracking-wide text-white sm:text-2xl">Banco de preguntas</h3>
+                                        <p className="mt-1 text-xs text-zinc-400">Selecciona una pregunta para añadirla a la ficha.</p>
+                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={() => setIsInterviewBankOpen(false)}
+                                        aria-label="Cerrar banco de preguntas"
+                                        className="rounded-lg border border-white/10 p-2 text-zinc-400 transition-colors hover:border-white/30 hover:text-white"
+                                      >
+                                        <X className="h-5 w-5" />
+                                      </button>
+                                    </header>
+
+                                    <div className="border-b border-white/10 px-5 py-4 sm:px-7">
+                                      <div className="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                                        {INTERVIEW_QUESTION_BANK.map(group => {
+                                          const availableCount = group.questions.filter(question => !selectedInterview.questions.some(item => item.bankId === question.id)).length;
+                                          const isActive = interviewBankCategory === group.category;
+                                          return (
+                                            <button
+                                              key={group.category}
+                                              type="button"
+                                              onClick={() => setInterviewBankCategory(group.category)}
+                                              aria-pressed={isActive}
+                                              className={`flex min-h-14 items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left transition-colors ${isActive ? 'border-red-500 bg-red-600/15 text-white' : 'border-white/10 bg-white/[0.03] text-zinc-400 hover:border-white/20 hover:text-white'}`}
+                                            >
+                                              <span className="text-xs font-black uppercase tracking-wide">{group.category}</span>
+                                              <span className={`rounded-md px-2 py-1 text-[10px] font-black ${isActive ? 'bg-red-600 text-white' : 'bg-white/5 text-zinc-400'}`}>{availableCount} disponibles</span>
+                                            </button>
+                                          );
+                                        })}
+                                      </div>
+                                      <div className="relative">
+                                        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
+                                        <input
+                                          type="search"
+                                          value={interviewBankSearch}
+                                          onChange={event => setInterviewBankSearch(event.target.value)}
+                                          placeholder="Buscar en esta categoría..."
+                                          className="w-full rounded-xl border border-white/10 bg-black/40 py-3 pl-10 pr-4 text-sm text-white outline-none placeholder:text-zinc-600 focus:border-red-600"
+                                        />
+                                      </div>
+                                    </div>
+
+                                    <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-4 sm:p-6">
+                                      {selectedQuestionGroup.questions
+                                        .filter(question => question.text.toLowerCase().includes(interviewBankSearch.trim().toLowerCase()))
+                                        .map((question, index) => {
+                                          const alreadyAdded = selectedInterview.questions.some(item => item.bankId === question.id);
+                                          return (
+                                            <button
+                                              key={question.id}
+                                              type="button"
+                                              disabled={alreadyAdded}
+                                              onClick={() => handleAddBankInterviewQuestion(question)}
+                                              className="group flex w-full items-start gap-4 rounded-xl border border-white/10 bg-white/[0.025] p-4 text-left transition-all hover:border-red-500/50 hover:bg-red-600/[0.07] disabled:cursor-default disabled:opacity-40 sm:p-5"
+                                            >
+                                              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-red-500/30 bg-red-600/10 font-mono text-xs font-bold text-red-300 group-hover:bg-red-600 group-hover:text-white">{String(index + 1).padStart(2, '0')}</span>
+                                              <span className="min-w-0 flex-1 pt-1 text-sm leading-relaxed text-zinc-200">{question.text}</span>
+                                              <span className={`shrink-0 pt-1 text-[9px] font-black uppercase tracking-widest ${alreadyAdded ? 'text-zinc-500' : 'text-red-400'}`}>{alreadyAdded ? 'Añadida' : 'Elegir'}</span>
+                                            </button>
+                                          );
+                                        })}
+                                      {selectedQuestionGroup.questions.filter(question => question.text.toLowerCase().includes(interviewBankSearch.trim().toLowerCase())).length === 0 && (
+                                        <div className="py-12 text-center text-sm text-zinc-500">No hay preguntas que coincidan.</div>
+                                      )}
+                                      {interviewSyncError && <div role="alert" className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-300">{interviewSyncError}</div>}
+                                    </div>
+
+                                    <footer className="flex items-center justify-between gap-4 border-t border-white/10 px-5 py-4 sm:px-7">
+                                      <span className="text-xs text-zinc-500">{selectedInterview.questions.length} preguntas en esta ficha</span>
+                                      <button type="button" onClick={() => setIsInterviewBankOpen(false)} className="rounded-lg bg-white px-5 py-3 text-[10px] font-black uppercase tracking-widest text-black transition-colors hover:bg-red-500 hover:text-white">Listo</button>
+                                    </footer>
+                                  </section>
+                                </div>
+                              )}
 
                               <div className="space-y-4">
                                 {selectedInterview.questions.length === 0 ? (
@@ -1460,7 +1614,12 @@ export default function App() {
                                         placeholder="Escribe la respuesta aquí..."
                                         className="w-full bg-black/40 border border-white/10 rounded-2xl py-4 px-5 text-white font-bold outline-none focus:border-red-600 min-h-[120px] resize-none"
                                       />
-                                      <div className="mt-3 flex justify-end">
+                                      <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                                        <span aria-live="polite" className={`text-xs ${Object.hasOwn(interviewAnswerDrafts, question.id) && interviewAnswerDrafts[question.id] !== (question.answer ?? '') ? 'text-amber-400' : question.answer?.trim() ? 'text-green-400' : 'text-zinc-500'}`}>
+                                          {Object.hasOwn(interviewAnswerDrafts, question.id) && interviewAnswerDrafts[question.id] !== (question.answer ?? '')
+                                            ? 'Cambios sin guardar'
+                                            : question.answer?.trim() ? 'Guardada en Supabase' : 'Respuesta pendiente'}
+                                        </span>
                                         <button
                                           type="button"
                                           onClick={() => saveInterviewQuestionAnswer(question.id)}
