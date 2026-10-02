@@ -101,6 +101,9 @@ export default function App() {
   const [newInterviewQuestion, setNewInterviewQuestion] = useState('');
   const [newInterviewAnswer, setNewInterviewAnswer] = useState('');
   const [questionToFocusId, setQuestionToFocusId] = useState(null);
+  const [interviewAnswerDrafts, setInterviewAnswerDrafts] = useState({});
+  const [interviewBankCategory, setInterviewBankCategory] = useState(INTERVIEW_QUESTION_BANK[0].category);
+  const [newBankQuestionId, setNewBankQuestionId] = useState('');
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newStudentName, setNewStudentName] = useState('');
@@ -747,6 +750,7 @@ export default function App() {
         questions: [...interview.questions, newQuestion]
       };
     }));
+    setNewBankQuestionId('');
     setQuestionToFocusId(newQuestion.id);
   };
 
@@ -758,16 +762,40 @@ export default function App() {
     ));
   };
 
-  const updateInterviewQuestionAnswer = (questionId, value) => {
+  const updateInterviewQuestionAnswerDraft = (questionId, value) => {
+    setInterviewAnswerDrafts(prev => ({ ...prev, [questionId]: value }));
+  };
+
+  const saveInterviewQuestionAnswer = (questionId) => {
+    if (!Object.hasOwn(interviewAnswerDrafts, questionId)) return;
+    const answer = interviewAnswerDrafts[questionId];
     setInterviews(prev => prev.map(interview => {
       if (interview.id !== selectedInterviewId) return interview;
       return {
         ...interview,
         questions: interview.questions.map(question =>
-          question.id === questionId ? { ...question, answer: value } : question
+          question.id === questionId ? { ...question, answer } : question
         )
       };
     }));
+    setInterviewAnswerDrafts(prev => {
+      const next = { ...prev };
+      delete next[questionId];
+      return next;
+    });
+  };
+
+  const deleteInterviewQuestion = (questionId) => {
+    if (typeof window !== 'undefined' && !window.confirm('¿Eliminar esta pregunta y su respuesta de la ficha?')) return;
+    setInterviews(prev => prev.map(interview => interview.id === selectedInterviewId
+      ? { ...interview, questions: interview.questions.filter(question => question.id !== questionId) }
+      : interview
+    ));
+    setInterviewAnswerDrafts(prev => {
+      const next = { ...prev };
+      delete next[questionId];
+      return next;
+    });
   };
 
   const deleteInterview = (interviewId) => {
@@ -1325,6 +1353,7 @@ export default function App() {
                       <>
                         {(() => {
                           const selectedInterview = interviews.find(interview => interview.id === selectedInterviewId);
+                          const selectedQuestionGroup = INTERVIEW_QUESTION_BANK.find(group => group.category === interviewBankCategory) || INTERVIEW_QUESTION_BANK[0];
                           return (
                             <>
                               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
@@ -1360,33 +1389,48 @@ export default function App() {
                                 </select>
                               </div>
 
-                              <div className="space-y-5 mb-8 border border-white/10 bg-black/20 rounded-[2rem] p-5">
-                                <div>
-                                  <h4 className="text-sm font-black uppercase tracking-widest">Banco de preguntas</h4>
-                                  <p className="mt-1 text-xs text-zinc-500">Elige una pregunta para añadirla a esta ficha y escribir la respuesta.</p>
+                              <div className="mb-8 space-y-4 rounded-2xl border border-white/10 bg-black/30 p-4 md:p-5">
+                                <div className="flex flex-wrap items-center justify-between gap-3">
+                                  <div>
+                                    <h4 className="text-sm font-black uppercase tracking-widest">Banco de preguntas</h4>
+                                    <p className="mt-1 text-xs text-zinc-500">Elige una pregunta y aparecerá su respuesta en la ficha.</p>
+                                  </div>
+                                  <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">{selectedInterview.questions.length} elegidas</span>
                                 </div>
-                                {INTERVIEW_QUESTION_BANK.map(group => (
-                                  <details key={group.category} className="border-t border-white/10 pt-4">
-                                    <summary className="cursor-pointer text-[10px] font-black uppercase tracking-widest text-red-400">{group.category} ({group.questions.length})</summary>
-                                    <div className="mt-3 space-y-2">
-                                      {group.questions.map(question => {
-                                        const alreadyAdded = selectedInterview.questions.some(item => item.bankId === question.id);
-                                        return (
-                                          <button
-                                            key={question.id}
-                                            type="button"
-                                            disabled={alreadyAdded}
-                                            onClick={() => handleAddBankInterviewQuestion(question)}
-                                            className="flex w-full items-start justify-between gap-4 rounded-xl border border-white/5 p-3 text-left text-sm text-zinc-300 transition-colors hover:border-red-600/50 hover:bg-white/5 disabled:cursor-default disabled:opacity-40"
-                                          >
-                                            <span>{question.text}</span>
-                                            <span className="shrink-0 text-[9px] font-black uppercase tracking-widest text-red-400">{alreadyAdded ? 'Añadida' : 'Elegir'}</span>
-                                          </button>
-                                        );
-                                      })}
-                                    </div>
-                                  </details>
-                                ))}
+                                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                                  {INTERVIEW_QUESTION_BANK.map(group => (
+                                    <button
+                                      key={group.category}
+                                      type="button"
+                                      onClick={() => {
+                                        setInterviewBankCategory(group.category);
+                                        setNewBankQuestionId('');
+                                      }}
+                                      className={`flex min-h-14 items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left transition-colors ${interviewBankCategory === group.category ? 'border-red-600 bg-red-600/15 text-white' : 'border-white/10 bg-white/[0.03] text-zinc-400 hover:border-white/20 hover:text-white'}`}
+                                    >
+                                      <span className="text-xs font-black uppercase tracking-wide">{group.category}</span>
+                                      <span className="text-[10px] font-bold text-red-400">{group.questions.length}</span>
+                                    </button>
+                                  ))}
+                                </div>
+                                <select
+                                  value={newBankQuestionId}
+                                  onChange={event => {
+                                    const question = selectedQuestionGroup.questions.find(item => item.id === event.target.value);
+                                    if (question) handleAddBankInterviewQuestion(question);
+                                  }}
+                                  className="w-full rounded-xl border border-white/10 bg-zinc-900 px-4 py-3 text-sm text-white outline-none focus:border-red-600"
+                                >
+                                  <option value="">Elegir pregunta de {selectedQuestionGroup.category.toLowerCase()}...</option>
+                                  {selectedQuestionGroup.questions.map(question => {
+                                    const alreadyAdded = selectedInterview.questions.some(item => item.bankId === question.id);
+                                    return (
+                                      <option key={question.id} value={question.id} disabled={alreadyAdded}>
+                                        {alreadyAdded ? 'Añadida · ' : ''}{question.text}
+                                      </option>
+                                    );
+                                  })}
+                                </select>
                               </div>
 
                               <div className="space-y-4">
@@ -1397,16 +1441,35 @@ export default function App() {
                                 ) : (
                                   selectedInterview.questions.map(question => (
                                     <div key={question.id} className="border border-white/10 bg-black/20 rounded-[2rem] p-5">
-                                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+                                      <div className="mb-4 flex items-start justify-between gap-3">
                                         <div className="text-base font-black italic uppercase tracking-tighter">{question.text}</div>
+                                        <button
+                                          type="button"
+                                          onClick={() => deleteInterviewQuestion(question.id)}
+                                          aria-label="Eliminar pregunta de la ficha"
+                                          title="Eliminar pregunta"
+                                          className="shrink-0 rounded-lg border border-white/10 p-2 text-zinc-400 transition-colors hover:border-red-600/50 hover:bg-red-600/10 hover:text-red-400"
+                                        >
+                                          <Trash2 className="h-4 w-4" />
+                                        </button>
                                       </div>
                                       <textarea
                                         id={`interview-answer-${question.id}`}
-                                        value={question.answer}
-                                        onChange={e => updateInterviewQuestionAnswer(question.id, e.target.value)}
+                                        value={interviewAnswerDrafts[question.id] ?? question.answer ?? ''}
+                                        onChange={e => updateInterviewQuestionAnswerDraft(question.id, e.target.value)}
                                         placeholder="Escribe la respuesta aquí..."
                                         className="w-full bg-black/40 border border-white/10 rounded-2xl py-4 px-5 text-white font-bold outline-none focus:border-red-600 min-h-[120px] resize-none"
                                       />
+                                      <div className="mt-3 flex justify-end">
+                                        <button
+                                          type="button"
+                                          onClick={() => saveInterviewQuestionAnswer(question.id)}
+                                          disabled={!Object.hasOwn(interviewAnswerDrafts, question.id) || interviewAnswerDrafts[question.id] === (question.answer ?? '')}
+                                          className="rounded-xl bg-red-600 px-4 py-3 text-[10px] font-black uppercase tracking-widest text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-40"
+                                        >
+                                          Guardar respuesta
+                                        </button>
+                                      </div>
                                     </div>
                                   ))
                                 )}
