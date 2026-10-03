@@ -55,7 +55,7 @@ const INTERVIEW_QUESTION_BANK = [
 ];
 
 const ADMIN_EMAILS = ["sya@safd.com"]; 
-const AUXILIARY_EMAILS = (import.meta.env.VITE_AUXILIARY_EMAILS || 'blake.evans@safd.com, asher.silverwind@safd.com')
+const AUXILIARY_EMAILS = (import.meta.env.VITE_AUXILIARY_EMAILS || 'blake.evans@safd.com, asher.silverwind@safd.com ,connor.taylor@safd.com')
   .split(',')
   .map(email => email.toLowerCase().trim())
   .filter(Boolean);
@@ -69,6 +69,7 @@ const USER_ROLES = {
   "scarletaylor@safd.com": "Sargento", 
   "eros@safd.com": "Capitan",
   "markuskraver@safd.com": "Shift Commander",
+  "taeron.santana@safd.com": "Sargento",
 };
 const RANGOS_ACADEMIA = ["Academy", "Probationary", "Ascendido", "Suspendido"];
 const ACADEMIC_MODULES = ['asis_radio', 'asis_auxilios', 'asis_incendios', 'asis_excarcelacion'];
