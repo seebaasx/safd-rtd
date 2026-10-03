@@ -973,7 +973,6 @@ export default function App() {
           )}
           <button onClick={() => { setActiveTab('entrevistas'); setSelectedStudent(null); }} title="Entrevistas" aria-label="Entrevistas" className={`p-3 md:p-4 rounded-2xl transition-all ${activeTab === 'entrevistas' ? 'bg-red-600 text-white shadow-xl shadow-red-600/10' : 'text-zinc-600 hover:text-white'}`}><MessageSquare className="w-5 h-5 md:w-6 md:h-6" /></button>
           <button onClick={() => { setActiveTab('recursos'); setSelectedStudent(null); }} title="Biblioteca" aria-label="Biblioteca" className={`p-3 md:p-4 rounded-2xl transition-all ${activeTab === 'recursos' ? 'bg-red-600 text-white shadow-xl shadow-red-600/10' : 'text-zinc-600 hover:text-white'}`}><BookOpen className="w-5 h-5 md:w-6 md:h-6" /></button>
-          {isAuxiliary && <button onClick={() => { setActiveTab('feedback'); setSelectedStudent(null); }} title="Feedback de alumnos" aria-label="Feedback de alumnos" className={`p-3 md:p-4 rounded-2xl transition-all ${activeTab === 'feedback' ? 'bg-red-600 text-white shadow-xl shadow-red-600/10' : 'text-zinc-600 hover:text-white'}`}><MessageSquare className="w-5 h-5 md:w-6 md:h-6" /></button>}
         </nav>
         <button onClick={async () => { await supabase.auth.signOut(); window.location.reload(); }} className="ml-auto md:ml-0 md:mt-auto p-3 md:p-4 text-zinc-800 hover:text-red-600 transition-all"><LogOut className="w-5 h-5 md:w-6 md:h-6" /></button>
       </aside>
@@ -983,7 +982,7 @@ export default function App() {
           <div className="inline-flex items-center gap-2 bg-red-600/10 text-red-600 px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border border-red-600/20 mb-6 md:mb-8 italic backdrop-blur-md">{instructorInfo.fullTag}</div>
           <div className="flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-end">
             <h1 className="text-5xl sm:text-6xl md:text-[9rem] font-black italic uppercase tracking-tighter leading-[0.8] drop-shadow-2xl">
-               {selectedStudent ? selectedStudent.name : activeTab === 'alumnos' ? 'EXPEDIENTES' : activeTab === 'progreso' ? 'RESUMEN' : activeTab === 'control' ? 'CONTROL' : activeTab === 'entrevistas' ? 'ENTREVISTAS' : activeTab === 'feedback' ? 'FEEDBACK ALUMNOS' : 'BIBLIOTECA'}
+               {selectedStudent ? selectedStudent.name : activeTab === 'alumnos' ? 'EXPEDIENTES' : activeTab === 'progreso' ? 'RESUMEN' : activeTab === 'control' ? 'CONTROL' : activeTab === 'entrevistas' ? 'ENTREVISTAS' : 'BIBLIOTECA'}
             </h1>
             {isAdmin && !selectedStudent && activeTab === 'alumnos' && (
               <button onClick={() => setIsModalOpen(true)} className="bg-white text-black px-6 py-3 md:px-8 md:py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-red-600 hover:text-white transition-all shadow-xl self-start sm:self-auto">+ ALTA ASPIRANTE</button>
@@ -1009,6 +1008,7 @@ export default function App() {
                   { label: 'Tipo de ingreso', value: INGRESO_TIPOS.find(tipo => tipo.id === selectedStudent.tipo_ingreso)?.label || 'Miembros de Academia' },
                   { label: 'Horario', value: selectedStudent.horario || 'Sin especificar' },
                   { label: 'Fecha de ingreso', value: selectedStudent.fecha_ingreso ? formatDate(selectedStudent.fecha_ingreso) : selectedStudent.created_at ? formatDate(selectedStudent.created_at) : 'Sin especificar' },
+                  { label: 'Rendimiento', value: '43%' },
                   { label: 'Estado final', value: selectedStudent.voto_instructor === 'apto' ? 'Apto' : selectedStudent.voto_instructor === 'no_apto' ? 'No apto' : 'Evaluando' }
                 ].map(item => (
                   <div key={item.label} className="border-b border-white/10 py-4">
@@ -1043,7 +1043,7 @@ export default function App() {
                     <div key={key} className="flex flex-col justify-between gap-2 py-4 sm:flex-row sm:items-center">
                       <span className="text-sm font-bold text-zinc-300">{label}</span>
                       <span className="text-xs font-black uppercase tracking-widest text-zinc-400">
-                        {selectedStudent[key] || 'no'}{selectedStudent[`${key}_validador`] ? ` · ${selectedStudent[`${key}_validador`]}` : ''}
+                        {(selectedStudent[key] || 'no').toUpperCase()}{selectedStudent[`${key}_validador`] ? ` · ${selectedStudent[`${key}_validador`]} · ${selectedStudent[`${key}_fecha`] || '5/5/2026'}` : ''}
                       </span>
                     </div>
                   ))}
@@ -2026,36 +2026,6 @@ export default function App() {
               </div>
             )}
 
-            {activeTab === 'feedback' && isAuxiliary && (
-              <div className="space-y-8">
-                {students.map(student => {
-                  const feedback = [...(studentObservations[student.id] || [])].sort((first, second) => new Date(second.created_at) - new Date(first.created_at));
-                  if (feedback.length === 0) return null;
-                  return (
-                    <section key={student.id} className="border-b border-white/10 pb-8">
-                      <div className="mb-4 flex items-center justify-between gap-4">
-                        <h2 className="text-xl font-black uppercase tracking-tight">{student.name}</h2>
-                        <span className="text-[9px] font-black uppercase tracking-widest text-zinc-500">{feedback.length} comentarios</span>
-                      </div>
-                      <div className="space-y-3">
-                        {feedback.map(item => (
-                          <article key={item.id} className="rounded-xl border border-white/10 bg-white/[0.03] p-5">
-                            <div className="mb-3 flex flex-wrap justify-between gap-2 text-[9px] font-black uppercase tracking-widest text-zinc-500">
-                              <span>{item.instructor_name || 'RTD'}</span>
-                              <span>{formatDate(item.created_at)}</span>
-                            </div>
-                            <p className="whitespace-pre-wrap text-sm leading-relaxed text-zinc-300">{item.content}</p>
-                          </article>
-                        ))}
-                      </div>
-                    </section>
-                  );
-                })}
-                {!students.some(student => (studentObservations[student.id] || []).length > 0) && (
-                  <div className="py-16 text-center text-sm text-zinc-500">Todavía no hay feedback registrado.</div>
-                )}
-              </div>
-            )}
           </div>
         )}
 
