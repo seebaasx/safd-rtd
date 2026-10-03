@@ -55,7 +55,7 @@ const INTERVIEW_QUESTION_BANK = [
 ];
 
 const ADMIN_EMAILS = ["sya@safd.com"]; 
-const AUXILIARY_EMAILS = (import.meta.env.VITE_AUXILIARY_EMAILS || '')
+const AUXILIARY_EMAILS = (import.meta.env.VITE_AUXILIARY_EMAILS || 'blake.evans@safd.com, asher.silverwind@safd.com')
   .split(',')
   .map(email => email.toLowerCase().trim())
   .filter(Boolean);
