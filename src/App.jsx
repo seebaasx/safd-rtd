@@ -524,7 +524,7 @@ export default function App() {
   }, [selectedStudent, supabase]);
 
   const updateStudentData = async (column, value) => {
-    if (!supabase || !selectedStudent) return;
+    if (isAuxiliary || !supabase || !selectedStudent) return;
     let finalValue = (selectedStudent[column] === value) ? null : value;
     const updatePayload = { [column]: finalValue };
     const skills = ['actitud', 'mando', 'interna', 'radio', 'primeros_aux', 'excarcelacion_hab', 'incendios_hab'];
@@ -561,7 +561,7 @@ export default function App() {
   };
 
   const saveStudentCard = async () => {
-    if (!supabase || !selectedStudent) return;
+    if (isAuxiliary || !supabase || !selectedStudent) return;
 
     setIsSavingStudent(true);
 
@@ -643,6 +643,7 @@ export default function App() {
 
   const handleCreateStudent = async (e) => {
     e.preventDefault();
+    if (isAuxiliary) return;
     if (!newStudentName.trim()) return;
 
     const fechaIngreso = new Date().toISOString().split('T')[0];
@@ -687,6 +688,7 @@ export default function App() {
 
   const deleteStudent = async (id, e) => {
     e.stopPropagation();
+    if (isAuxiliary) return;
     if (window.confirm("¿ELIMINAR ALUMNO?")) { await supabase.from('students').delete().eq('id', id); fetchAllData(); }
   };
 
@@ -755,7 +757,7 @@ export default function App() {
   };
 
   const sendObservation = async () => {
-    if (!newObs.trim()) return;
+    if (isAuxiliary || !selectedStudent || !newObs.trim()) return;
     const { data } = await supabase.from('observations').insert([{ student_id: selectedStudent.id, instructor_name: instructorInfo.fullTag, content: newObs }]).select();
     const nextObs = [...observations, data[0]];
     setObservations(nextObs); 
@@ -964,7 +966,7 @@ export default function App() {
       <aside className="w-full md:w-24 bg-black/40 border-b md:border-r border-white/10 flex flex-row md:flex-col items-center py-4 md:py-10 h-auto md:h-screen sticky top-0 z-50 backdrop-blur-xl gap-4 md:gap-0">
         <img src="https://r2.fivemanage.com/rlMpa4HCjCLM3vQVrxiNo/RTD.png" className="w-12 h-12 md:w-14 md:h-14 object-contain md:mb-16 drop-shadow-xl" alt="Logo" />
         <nav className="flex flex-row md:flex-col gap-3 md:gap-8">
-          {!isAuxiliary && <button onClick={() => { setActiveTab('alumnos'); setSelectedStudent(null); }} className={`p-3 md:p-4 rounded-2xl transition-all ${activeTab === 'alumnos' ? 'bg-red-600 text-white shadow-xl shadow-red-600/10' : 'text-zinc-600 hover:text-white'}`}><Users className="w-5 h-5 md:w-6 md:h-6" /></button>}
+          <button onClick={() => { setActiveTab('alumnos'); setSelectedStudent(null); }} title="Expedientes" aria-label="Expedientes" className={`p-3 md:p-4 rounded-2xl transition-all ${activeTab === 'alumnos' ? 'bg-red-600 text-white shadow-xl shadow-red-600/10' : 'text-zinc-600 hover:text-white'}`}><Users className="w-5 h-5 md:w-6 md:h-6" /></button>
           {!isAuxiliary && <button onClick={() => { setActiveTab('progreso'); setSelectedStudent(null); }} className={`p-3 md:p-4 rounded-2xl transition-all ${activeTab === 'progreso' ? 'bg-red-600 text-white shadow-xl shadow-red-600/10' : 'text-zinc-600 hover:text-white'}`}><BarChart3 className="w-5 h-5 md:w-6 md:h-6" /></button>}
           {isAdmin && (
             <button onClick={() => { setActiveTab('control'); setSelectedStudent(null); }} className={`p-3 md:p-4 rounded-2xl transition-all ${activeTab === 'control' ? 'bg-red-600 text-white shadow-xl shadow-red-600/10' : 'text-zinc-600 hover:text-white'}`}><ShieldCheck className="w-5 h-5 md:w-6 md:h-6" /></button>
@@ -993,6 +995,80 @@ export default function App() {
         </header>
 
         {selectedStudent ? (
+          isAuxiliary ? (
+            <div className="space-y-8 pb-20 animate-in fade-in duration-500">
+              <button onClick={() => setSelectedStudent(null)} className="text-zinc-400 hover:text-white text-[9px] font-black uppercase tracking-widest flex items-center gap-2 bg-white/5 px-6 py-3 rounded-xl border border-white/10 transition-all"><ChevronLeft className="w-4 h-4" /> Volver a expedientes</button>
+              <section className="border-b border-white/10 pb-8">
+                <div className="text-[10px] font-black uppercase tracking-widest text-red-400 mb-3">Ficha de alumno · Solo lectura</div>
+                <h2 className="text-4xl font-black italic uppercase tracking-tight">{selectedStudent.name}</h2>
+              </section>
+
+              <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                {[
+                  { label: 'Rango', value: selectedStudent.rango || 'Academy' },
+                  { label: 'Tipo de ingreso', value: INGRESO_TIPOS.find(tipo => tipo.id === selectedStudent.tipo_ingreso)?.label || 'Miembros de Academia' },
+                  { label: 'Horario', value: selectedStudent.horario || 'Sin especificar' },
+                  { label: 'Fecha de ingreso', value: selectedStudent.fecha_ingreso ? formatDate(selectedStudent.fecha_ingreso) : selectedStudent.created_at ? formatDate(selectedStudent.created_at) : 'Sin especificar' },
+                  { label: 'Estado final', value: selectedStudent.voto_instructor === 'apto' ? 'Apto' : selectedStudent.voto_instructor === 'no_apto' ? 'No apto' : 'Evaluando' }
+                ].map(item => (
+                  <div key={item.label} className="border-b border-white/10 py-4">
+                    <div className="mb-2 text-[9px] font-black uppercase tracking-widest text-zinc-500">{item.label}</div>
+                    <div className="text-lg font-bold text-white">{item.value}</div>
+                  </div>
+                ))}
+              </section>
+
+              {(selectedStudent.tipo_ingreso || 'academia') !== 'traslado' && (
+                <section>
+                  <h3 className="mb-4 text-lg font-black uppercase tracking-wide">Días de academia</h3>
+                  <div className="divide-y divide-white/10 border-y border-white/10">
+                    {ACADEMIC_MODULES.map(module => (
+                      <div key={module} className="flex items-center justify-between gap-4 py-4">
+                        <span className="text-sm font-bold text-zinc-300">{MODULE_LABELS[module]}</span>
+                        <span className="text-xs font-black uppercase tracking-widest text-zinc-400">{selectedStudent[module] === 'realizado' ? 'Realizado' : selectedStudent[module] === 'no_realizado' ? 'No realizado' : 'Pendiente'}</span>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              <section>
+                <h3 className="mb-4 text-lg font-black uppercase tracking-wide">Habilidades de campo</h3>
+                <div className="divide-y divide-white/10 border-y border-white/10">
+                  {[
+                    ['actitud', 'Actitud'], ['mando', 'Mando'], ['interna', 'Buen uso de interna'],
+                    ['radio', 'Comunicación por radio'], ['primeros_aux', 'Primeros auxilios'],
+                    ['excarcelacion_hab', 'Excarcelaciones'], ['incendios_hab', 'Incendios']
+                  ].map(([key, label]) => (
+                    <div key={key} className="flex flex-col justify-between gap-2 py-4 sm:flex-row sm:items-center">
+                      <span className="text-sm font-bold text-zinc-300">{label}</span>
+                      <span className="text-xs font-black uppercase tracking-widest text-zinc-400">
+                        {selectedStudent[key] || 'no'}{selectedStudent[`${key}_validador`] ? ` · ${selectedStudent[`${key}_validador`]}` : ''}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              <section>
+                <h3 className="mb-4 text-lg font-black uppercase tracking-wide">Feedback</h3>
+                <div className="space-y-3">
+                  {[...(studentObservations[selectedStudent.id] || [])]
+                    .sort((first, second) => new Date(second.created_at) - new Date(first.created_at))
+                    .map(observation => (
+                      <article key={observation.id} className="border-l-2 border-red-600/50 bg-white/[0.03] p-5">
+                        <div className="mb-3 flex flex-wrap justify-between gap-2 text-[9px] font-black uppercase tracking-widest text-zinc-500">
+                          <span>{observation.instructor_name || 'RTD'}</span>
+                          <span>{formatDate(observation.created_at)}</span>
+                        </div>
+                        <p className="whitespace-pre-wrap text-sm leading-relaxed text-zinc-300">{observation.content}</p>
+                      </article>
+                    ))}
+                  {(studentObservations[selectedStudent.id] || []).length === 0 && <p className="text-sm text-zinc-500">No hay feedback registrado.</p>}
+                </div>
+              </section>
+            </div>
+          ) : (
           /* --- DISEÑO EXPEDIENTE TÁCTICO RECONSTRUIDO --- */
           <div className="space-y-12 pb-20 animate-in fade-in duration-500">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -1104,10 +1180,11 @@ export default function App() {
                </div>
             </div>
           </div>
+          )
         ) : (
           /* --- VISTA DE LISTADOS (ALUMNOS, RESUMEN, BIBLIOTECA) --- */
           <div className="animate-in fade-in duration-700">
-            {!isAuxiliary && activeTab === 'alumnos' && (
+            {activeTab === 'alumnos' && (
               <div className="space-y-12">
                 {INGRESO_TIPOS.map(tipo => {
                   const list = tipo.id === 'academia' ? academyStudents : trasladoStudents;
