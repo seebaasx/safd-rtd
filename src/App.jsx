@@ -55,6 +55,11 @@ const INTERVIEW_QUESTION_BANK = [
 ];
 
 const ADMIN_EMAILS = ["sya@safd.com"]; 
+const AUXILIARY_EMAILS = (import.meta.env.VITE_AUXILIARY_EMAILS || '')
+  .split(',')
+  .map(email => email.toLowerCase().trim())
+  .filter(Boolean);
+const isAuxiliaryEmail = email => AUXILIARY_EMAILS.includes(email?.toLowerCase().trim());
 const USER_ROLES = { 
   "sya@safd.com": "JEFA DE BATALLÓN", 
   "drewcalloway@safd.com": "Teniente", 
@@ -121,6 +126,7 @@ export default function App() {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [emailInput, setEmailInput] = useState('');
   const [passInput, setPassInput] = useState('');
+  const [loginMode, setLoginMode] = useState('general');
   const [isEditingHorario, setIsEditingHorario] = useState(false);
   const [tempHorario, setTempHorario] = useState('');
   const [tempFechaIngreso, setTempFechaIngreso] = useState('');
@@ -146,7 +152,10 @@ export default function App() {
       setSupabase(client);
       client.auth.getSession().then(({ data: { session: s } }) => {
         setSession(s);
-        if (s) fetchAllData(client);
+        if (s) {
+          setActiveTab(isAuxiliaryEmail(s.user.email) ? 'entrevistas' : 'alumnos');
+          fetchAllData(client);
+        }
         setLoading(false);
       });
     };
@@ -187,7 +196,7 @@ export default function App() {
     if (!session?.user?.email) return { name: "INVITADO", rango: "VISITANTE", fullTag: "[VISITANTE] INVITADO" };
     const emailLower = session.user.email.toLowerCase().trim();
     const name = emailLower.split('@')[0].toUpperCase();
-    const rango = USER_ROLES[emailLower] || "INSTRUCTOR";
+    const rango = isAuxiliaryEmail(emailLower) ? "AUXILIARES RTD" : USER_ROLES[emailLower] || "INSTRUCTOR";
     return { name, rango, fullTag: `[${rango}] ${name}` };
   }, [session]);
 
@@ -203,7 +212,8 @@ export default function App() {
     });
   }, []);
 
-  const isAdmin = useMemo(() => session?.user?.email && ADMIN_EMAILS.some(e => e.toLowerCase().trim() === session.user.email.toLowerCase().trim()), [session]);
+  const isAdmin = useMemo(() => session?.user?.email && !isAuxiliaryEmail(session.user.email) && ADMIN_EMAILS.some(e => e.toLowerCase().trim() === session.user.email.toLowerCase().trim()), [session]);
+  const isAuxiliary = useMemo(() => isAuxiliaryEmail(session?.user?.email), [session]);
   const getStudentOrigin = (student) => (student?.tipo_ingreso || 'academia').toLowerCase();
   const academyStudents = useMemo(() => students.filter(student => getStudentOrigin(student) === 'academia'), [students]);
   const trasladoStudents = useMemo(() => students.filter(student => getStudentOrigin(student) === 'traslado'), [students]);
@@ -770,6 +780,7 @@ export default function App() {
 
   const handleAddInterviewee = async (e) => {
     e.preventDefault();
+    if (isAuxiliary) return;
     const cleanedName = newInterviewName.trim();
     if (!cleanedName) return;
 
@@ -824,6 +835,7 @@ export default function App() {
   };
 
   const updateInterviewAttendance = async (attendance) => {
+    if (isAuxiliary) return;
     const interview = interviews.find(item => item.id === selectedInterviewId);
     if (!interview) return;
     const updatedInterview = { ...interview, attendance };
@@ -839,6 +851,8 @@ export default function App() {
     if (!Object.hasOwn(interviewAnswerDrafts, questionId)) return;
     const interview = interviews.find(item => item.id === selectedInterviewId);
     if (!interview) return;
+    const targetQuestion = interview.questions.find(question => question.id === questionId);
+    if (isAuxiliary && targetQuestion?.answer?.trim()) return;
     const answer = interviewAnswerDrafts[questionId];
     const updatedInterview = {
       ...interview,
@@ -857,6 +871,7 @@ export default function App() {
   };
 
   const deleteInterviewQuestion = async (questionId) => {
+    if (isAuxiliary) return;
     if (typeof window !== 'undefined' && !window.confirm('¿Eliminar esta pregunta y su respuesta de la ficha?')) return;
     const interview = interviews.find(item => item.id === selectedInterviewId);
     if (!interview) return;
@@ -879,6 +894,7 @@ export default function App() {
   };
 
   const deleteInterview = async (interviewId) => {
+    if (isAuxiliary) return;
     const { error } = await supabase.from('interviews').delete().eq('client_id', interviewId);
     if (error) {
       console.error('Error deleting interview:', error);
@@ -892,10 +908,20 @@ export default function App() {
 
   const handleLogin = async (e) => {
     e.preventDefault();
+    const normalizedEmail = emailInput.toLowerCase().trim();
+    if (loginMode === 'auxiliares' && !isAuxiliaryEmail(normalizedEmail)) {
+      alert('Esta cuenta no está habilitada para Auxiliares RTD.');
+      return;
+    }
     setLoading(true);
-    const { data, error } = await supabase.auth.signInWithPassword({ email: emailInput, password: passInput });
+    const { data, error } = await supabase.auth.signInWithPassword({ email: normalizedEmail, password: passInput });
     if (error) { alert("Acceso denegado"); setLoading(false); }
-    else { setSession(data.session); fetchAllData(supabase); setLoading(false); }
+    else {
+      setSession(data.session);
+      setActiveTab(isAuxiliaryEmail(data.session.user.email) ? 'entrevistas' : 'alumnos');
+      fetchAllData(supabase);
+      setLoading(false);
+    }
   };
 
   if (loading || !supabase) return <div className="min-h-screen bg-[#050505] flex items-center justify-center text-red-600 font-black text-2xl animate-pulse italic uppercase tracking-widest">Sincronizando Sistema...</div>;
@@ -911,6 +937,10 @@ export default function App() {
               <h2 className="text-7xl md:text-[9rem] font-black italic mb-2 tracking-tighter leading-none">{slide.title}</h2>
               <p className="text-red-600 font-black italic mb-12 tracking-[0.5em] uppercase text-sm md:text-xl">{slide.subtitle}</p>
               <div className="w-full max-w-md bg-white/5 border border-white/10 rounded-[3rem] p-10 backdrop-blur-2xl shadow-2xl">
+                <div className="mb-6 grid grid-cols-2 gap-2 rounded-2xl border border-white/10 bg-black/30 p-2">
+                  <button type="button" onClick={() => setLoginMode('general')} aria-pressed={loginMode === 'general'} className={`rounded-xl px-3 py-3 text-[9px] font-black uppercase tracking-widest transition-colors ${loginMode === 'general' ? 'bg-red-600 text-white' : 'text-zinc-500 hover:text-white'}`}>Acceso RTD</button>
+                  <button type="button" onClick={() => setLoginMode('auxiliares')} aria-pressed={loginMode === 'auxiliares'} className={`rounded-xl px-3 py-3 text-[9px] font-black uppercase tracking-widest transition-colors ${loginMode === 'auxiliares' ? 'bg-red-600 text-white' : 'text-zinc-500 hover:text-white'}`}>Auxiliares RTD</button>
+                </div>
                 <form onSubmit={handleLogin} className="space-y-6 text-center">
                   <input type="email" placeholder="EMAIL" className="w-full bg-black/40 border border-white/10 rounded-2xl py-4 px-6 text-white italic font-bold outline-none focus:border-red-600" value={emailInput} onChange={e => setEmailInput(e.target.value)} required />
                   <input type="password" placeholder="CÓDIGO" className="w-full bg-black/40 border border-white/10 rounded-2xl py-4 px-6 text-white italic font-bold outline-none focus:border-red-600" value={passInput} onChange={e => setPassInput(e.target.value)} required />
@@ -934,13 +964,14 @@ export default function App() {
       <aside className="w-full md:w-24 bg-black/40 border-b md:border-r border-white/10 flex flex-row md:flex-col items-center py-4 md:py-10 h-auto md:h-screen sticky top-0 z-50 backdrop-blur-xl gap-4 md:gap-0">
         <img src="https://r2.fivemanage.com/rlMpa4HCjCLM3vQVrxiNo/RTD.png" className="w-12 h-12 md:w-14 md:h-14 object-contain md:mb-16 drop-shadow-xl" alt="Logo" />
         <nav className="flex flex-row md:flex-col gap-3 md:gap-8">
-          <button onClick={() => { setActiveTab('alumnos'); setSelectedStudent(null); }} className={`p-3 md:p-4 rounded-2xl transition-all ${activeTab === 'alumnos' ? 'bg-red-600 text-white shadow-xl shadow-red-600/10' : 'text-zinc-600 hover:text-white'}`}><Users className="w-5 h-5 md:w-6 md:h-6" /></button>
-          <button onClick={() => { setActiveTab('progreso'); setSelectedStudent(null); }} className={`p-3 md:p-4 rounded-2xl transition-all ${activeTab === 'progreso' ? 'bg-red-600 text-white shadow-xl shadow-red-600/10' : 'text-zinc-600 hover:text-white'}`}><BarChart3 className="w-5 h-5 md:w-6 md:h-6" /></button>
+          {!isAuxiliary && <button onClick={() => { setActiveTab('alumnos'); setSelectedStudent(null); }} className={`p-3 md:p-4 rounded-2xl transition-all ${activeTab === 'alumnos' ? 'bg-red-600 text-white shadow-xl shadow-red-600/10' : 'text-zinc-600 hover:text-white'}`}><Users className="w-5 h-5 md:w-6 md:h-6" /></button>}
+          {!isAuxiliary && <button onClick={() => { setActiveTab('progreso'); setSelectedStudent(null); }} className={`p-3 md:p-4 rounded-2xl transition-all ${activeTab === 'progreso' ? 'bg-red-600 text-white shadow-xl shadow-red-600/10' : 'text-zinc-600 hover:text-white'}`}><BarChart3 className="w-5 h-5 md:w-6 md:h-6" /></button>}
           {isAdmin && (
             <button onClick={() => { setActiveTab('control'); setSelectedStudent(null); }} className={`p-3 md:p-4 rounded-2xl transition-all ${activeTab === 'control' ? 'bg-red-600 text-white shadow-xl shadow-red-600/10' : 'text-zinc-600 hover:text-white'}`}><ShieldCheck className="w-5 h-5 md:w-6 md:h-6" /></button>
           )}
-          <button onClick={() => { setActiveTab('entrevistas'); setSelectedStudent(null); }} className={`p-3 md:p-4 rounded-2xl transition-all ${activeTab === 'entrevistas' ? 'bg-red-600 text-white shadow-xl shadow-red-600/10' : 'text-zinc-600 hover:text-white'}`}><MessageSquare className="w-5 h-5 md:w-6 md:h-6" /></button>
-          <button onClick={() => { setActiveTab('recursos'); setSelectedStudent(null); }} className={`p-3 md:p-4 rounded-2xl transition-all ${activeTab === 'recursos' ? 'bg-red-600 text-white shadow-xl shadow-red-600/10' : 'text-zinc-600 hover:text-white'}`}><BookOpen className="w-5 h-5 md:w-6 md:h-6" /></button>
+          <button onClick={() => { setActiveTab('entrevistas'); setSelectedStudent(null); }} title="Entrevistas" aria-label="Entrevistas" className={`p-3 md:p-4 rounded-2xl transition-all ${activeTab === 'entrevistas' ? 'bg-red-600 text-white shadow-xl shadow-red-600/10' : 'text-zinc-600 hover:text-white'}`}><MessageSquare className="w-5 h-5 md:w-6 md:h-6" /></button>
+          <button onClick={() => { setActiveTab('recursos'); setSelectedStudent(null); }} title="Biblioteca" aria-label="Biblioteca" className={`p-3 md:p-4 rounded-2xl transition-all ${activeTab === 'recursos' ? 'bg-red-600 text-white shadow-xl shadow-red-600/10' : 'text-zinc-600 hover:text-white'}`}><BookOpen className="w-5 h-5 md:w-6 md:h-6" /></button>
+          {isAuxiliary && <button onClick={() => { setActiveTab('feedback'); setSelectedStudent(null); }} title="Feedback de alumnos" aria-label="Feedback de alumnos" className={`p-3 md:p-4 rounded-2xl transition-all ${activeTab === 'feedback' ? 'bg-red-600 text-white shadow-xl shadow-red-600/10' : 'text-zinc-600 hover:text-white'}`}><MessageSquare className="w-5 h-5 md:w-6 md:h-6" /></button>}
         </nav>
         <button onClick={async () => { await supabase.auth.signOut(); window.location.reload(); }} className="ml-auto md:ml-0 md:mt-auto p-3 md:p-4 text-zinc-800 hover:text-red-600 transition-all"><LogOut className="w-5 h-5 md:w-6 md:h-6" /></button>
       </aside>
@@ -950,7 +981,7 @@ export default function App() {
           <div className="inline-flex items-center gap-2 bg-red-600/10 text-red-600 px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border border-red-600/20 mb-6 md:mb-8 italic backdrop-blur-md">{instructorInfo.fullTag}</div>
           <div className="flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-end">
             <h1 className="text-5xl sm:text-6xl md:text-[9rem] font-black italic uppercase tracking-tighter leading-[0.8] drop-shadow-2xl">
-               {selectedStudent ? selectedStudent.name : activeTab === 'alumnos' ? 'EXPEDIENTES' : activeTab === 'progreso' ? 'RESUMEN' : activeTab === 'control' ? 'CONTROL' : activeTab === 'entrevistas' ? 'ENTREVISTAS' : 'BIBLIOTECA'}
+               {selectedStudent ? selectedStudent.name : activeTab === 'alumnos' ? 'EXPEDIENTES' : activeTab === 'progreso' ? 'RESUMEN' : activeTab === 'control' ? 'CONTROL' : activeTab === 'entrevistas' ? 'ENTREVISTAS' : activeTab === 'feedback' ? 'FEEDBACK ALUMNOS' : 'BIBLIOTECA'}
             </h1>
             {isAdmin && !selectedStudent && activeTab === 'alumnos' && (
               <button onClick={() => setIsModalOpen(true)} className="bg-white text-black px-6 py-3 md:px-8 md:py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-red-600 hover:text-white transition-all shadow-xl self-start sm:self-auto">+ ALTA ASPIRANTE</button>
@@ -1076,7 +1107,7 @@ export default function App() {
         ) : (
           /* --- VISTA DE LISTADOS (ALUMNOS, RESUMEN, BIBLIOTECA) --- */
           <div className="animate-in fade-in duration-700">
-            {activeTab === 'alumnos' && (
+            {!isAuxiliary && activeTab === 'alumnos' && (
               <div className="space-y-12">
                 {INGRESO_TIPOS.map(tipo => {
                   const list = tipo.id === 'academia' ? academyStudents : trasladoStudents;
@@ -1102,7 +1133,7 @@ export default function App() {
               </div>
             )}
             
-            {activeTab === 'progreso' && (
+            {!isAuxiliary && activeTab === 'progreso' && (
               <div className="space-y-8">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div className="bg-white/5 border border-white/10 rounded-[2.5rem] p-10 backdrop-blur-md shadow-xl"><TrendingUp className="text-zinc-600 mb-6 w-8 h-8" /><div className="text-6xl font-black italic mb-2 tracking-tighter">{summaryStats.totalStudents}</div><div className="text-[10px] font-black text-zinc-600 uppercase tracking-widest italic">Aspirantes</div></div>
@@ -1280,7 +1311,7 @@ export default function App() {
               </div>
             )}
 
-            {activeTab === 'control' && (
+            {!isAuxiliary && activeTab === 'control' && (
               <div className="space-y-8">
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                   <div className="bg-white/5 border border-white/10 rounded-[2rem] p-6 backdrop-blur-md shadow-xl">
@@ -1388,7 +1419,7 @@ export default function App() {
                       <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500 italic">{interviews.length}</span>
                     </div>
 
-                    <form onSubmit={handleAddInterviewee} className="flex flex-col gap-3 mb-6">
+                    {!isAuxiliary && <form onSubmit={handleAddInterviewee} className="flex flex-col gap-3 mb-6">
                       <input
                         type="text"
                         value={newInterviewName}
@@ -1399,7 +1430,7 @@ export default function App() {
                       <button type="submit" className="bg-red-600 hover:bg-red-700 text-white rounded-2xl py-3 px-4 text-[10px] font-black uppercase tracking-widest transition-all">
                         + Añadir
                       </button>
-                    </form>
+                    </form>}
 
                     <div className="space-y-3">
                       {interviews.length === 0 ? (
@@ -1455,16 +1486,16 @@ export default function App() {
                                   <div className="text-[10px] font-black uppercase tracking-widest text-zinc-500 italic mb-2">Ficha de entrevista</div>
                                   <h3 className="text-3xl font-black italic uppercase tracking-tighter">{selectedInterview.name}</h3>
                                 </div>
-                                <button
+                                {!isAuxiliary && <button
                                   type="button"
                                   onClick={() => deleteInterview(selectedInterview.id)}
                                   className="bg-zinc-800 hover:bg-red-600 text-white rounded-xl px-4 py-3 text-[9px] font-black uppercase tracking-widest transition-all"
                                 >
                                   Eliminar
-                                </button>
+                                </button>}
                               </div>
 
-                              <div className="mb-6 rounded-[2rem] border border-white/10 bg-black/20 p-5">
+                              {!isAuxiliary && <div className="mb-6 rounded-[2rem] border border-white/10 bg-black/20 p-5">
                                 <label className="block text-[9px] font-black uppercase tracking-widest text-zinc-500 italic mb-2">Asistencia</label>
                                 <select
                                   value={selectedInterview.attendance || 'pendiente'}
@@ -1481,7 +1512,7 @@ export default function App() {
                                   <option value="presente" className="bg-zinc-900">Presente</option>
                                   <option value="ausente" className="bg-zinc-900">Ausente</option>
                                 </select>
-                              </div>
+                              </div>}
 
                               <button
                                 type="button"
@@ -1614,7 +1645,7 @@ export default function App() {
                                     <div key={question.id} className="rounded-2xl border border-white/10 bg-black/20 p-5">
                                       <div className="mb-4 flex items-start justify-between gap-3">
                                         <div className="text-base font-black italic uppercase tracking-tight">{question.text}</div>
-                                        <button
+                                        {!isAuxiliary && <button
                                           type="button"
                                           onClick={() => deleteInterviewQuestion(question.id)}
                                           aria-label="Eliminar pregunta de la ficha"
@@ -1622,7 +1653,7 @@ export default function App() {
                                           className="shrink-0 rounded-lg border border-white/10 p-2 text-zinc-400 transition-colors hover:border-red-600/50 hover:bg-red-600/10 hover:text-red-400"
                                         >
                                           <Trash2 className="h-4 w-4" />
-                                        </button>
+                                        </button>}
                                       </div>
                                       <textarea
                                         id={`interview-answer-${question.id}`}
@@ -1669,7 +1700,7 @@ export default function App() {
                                               <div className="mb-2 text-[9px] font-black uppercase tracking-widest text-emerald-400">Respuesta {String(savedAnswers.indexOf(question) + 1).padStart(2, '0')}</div>
                                               <h5 className="text-sm font-black leading-relaxed text-white">{question.text}</h5>
                                             </div>
-                                            <button
+                                            {!isAuxiliary && <button
                                               type="button"
                                               onClick={() => deleteInterviewQuestion(question.id)}
                                               aria-label="Eliminar pregunta y respuesta"
@@ -1677,7 +1708,7 @@ export default function App() {
                                               className="shrink-0 rounded-lg border border-white/10 p-2 text-zinc-400 transition-colors hover:border-red-600/50 hover:bg-red-600/10 hover:text-red-400"
                                             >
                                               <Trash2 className="h-4 w-4" />
-                                            </button>
+                                            </button>}
                                           </div>
                                         </div>
                                         <div className="p-5">
@@ -1717,7 +1748,7 @@ export default function App() {
                                           ) : (
                                             <>
                                               <p className="whitespace-pre-wrap text-sm leading-relaxed text-zinc-300">{question.answer}</p>
-                                              <div className="mt-4 flex justify-end">
+                                              {!isAuxiliary && <div className="mt-4 flex justify-end">
                                                 <button
                                                   type="button"
                                                   onClick={() => {
@@ -1729,7 +1760,7 @@ export default function App() {
                                                   <Edit2 className="h-3.5 w-3.5" />
                                                   Editar
                                                 </button>
-                                              </div>
+                                              </div>}
                                             </>
                                           )}
                                         </div>
@@ -1915,6 +1946,37 @@ export default function App() {
                     </div>
                   );
                 })()}
+              </div>
+            )}
+
+            {activeTab === 'feedback' && isAuxiliary && (
+              <div className="space-y-8">
+                {students.map(student => {
+                  const feedback = [...(studentObservations[student.id] || [])].sort((first, second) => new Date(second.created_at) - new Date(first.created_at));
+                  if (feedback.length === 0) return null;
+                  return (
+                    <section key={student.id} className="border-b border-white/10 pb-8">
+                      <div className="mb-4 flex items-center justify-between gap-4">
+                        <h2 className="text-xl font-black uppercase tracking-tight">{student.name}</h2>
+                        <span className="text-[9px] font-black uppercase tracking-widest text-zinc-500">{feedback.length} comentarios</span>
+                      </div>
+                      <div className="space-y-3">
+                        {feedback.map(item => (
+                          <article key={item.id} className="rounded-xl border border-white/10 bg-white/[0.03] p-5">
+                            <div className="mb-3 flex flex-wrap justify-between gap-2 text-[9px] font-black uppercase tracking-widest text-zinc-500">
+                              <span>{item.instructor_name || 'RTD'}</span>
+                              <span>{formatDate(item.created_at)}</span>
+                            </div>
+                            <p className="whitespace-pre-wrap text-sm leading-relaxed text-zinc-300">{item.content}</p>
+                          </article>
+                        ))}
+                      </div>
+                    </section>
+                  );
+                })}
+                {!students.some(student => (studentObservations[student.id] || []).length > 0) && (
+                  <div className="py-16 text-center text-sm text-zinc-500">Todavía no hay feedback registrado.</div>
+                )}
               </div>
             )}
           </div>
